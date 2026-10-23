@@ -65,12 +65,17 @@ button { cursor: pointer; }
 .now-date .tz { font-weight: 400; opacity: .8; }
 
 .grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 20px; align-items: start; }
-@media (max-width: 880px) { .grid { grid-template-columns: minmax(0, 1fr); } .now { text-align: left; } }
+@media (max-width: 880px) {
+  .grid { grid-template-columns: minmax(0, 1fr); } .now { text-align: left; }
+  /* On phones: timer, then plan, then progress and settings */
+  .side { display: contents; }
+  .timer { order: 1; } .plan { order: 2; } .progress { order: 3; } .settings { order: 4; }
+}
 .card { background: var(--surface); border-radius: var(--radius); padding: 22px; box-shadow: 0 1px 0 var(--line), 0 18px 40px -28px color-mix(in srgb, var(--cur) 60%, transparent); min-width: 0; }
 
 /* Dial */
-.timer { display: grid; gap: 18px; justify-items: center; text-align: center; position: sticky; top: calc(16px + env(safe-area-inset-top, 0px)); }
-@media (max-width: 880px) { .timer { position: static; } }
+.side { display: grid; gap: 20px; min-width: 0; }
+.timer { display: grid; gap: 18px; justify-items: center; text-align: center; }
 .chip {
   display: inline-flex; align-items: center; gap: 8px;
   font: 600 .78rem/1 var(--f-body); text-transform: uppercase; letter-spacing: .08em;
@@ -212,9 +217,109 @@ details.quick summary span { font-weight: 400; color: var(--muted); font-size: .
 .qb .btns { display: flex; gap: 8px; flex-basis: 100%; flex-wrap: wrap; }
 .empty { text-align: center; color: var(--muted); padding: 24px 12px; border: 2px dashed var(--line); border-radius: 16px; }
 
+/* Ending soon: ring pulses */
+.dial.ending .prog { animation: pulse 1s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .45; } }
+
+/* Task on the dial */
+.task-now {
+  width: 100%; display: flex; align-items: center; gap: 10px; text-align: left; cursor: pointer;
+  padding: 10px 14px; border-radius: 14px; border: 1px dashed var(--line); font-weight: 600;
+}
+.task-now input { width: 18px; height: 18px; accent-color: var(--cur); flex: none; }
+.task-now .k { display: block; font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+.task-now.is-done #taskNowText { text-decoration: line-through; color: var(--muted); }
+.task-field { flex-basis: 100%; }
+.task-field input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--c); flex: none; }
+.task-field .task-in { flex: 1; min-width: 0; }
+.task-in.is-done { text-decoration: line-through; color: var(--muted); }
+
+/* Shared-plan banner */
+.banner {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px;
+  padding: 14px 18px; border-radius: 16px; background: var(--surface);
+  border: 2px solid var(--cur);
+}
+.banner p { margin: 0; font-weight: 600; }
+
+/* Progress */
+.progress { display: grid; gap: 16px; }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.stat { display: grid; gap: 2px; padding: 12px; border-radius: 14px; background: var(--field); min-width: 0; }
+.stat .k { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+.stat .v { font: 500 1.35rem/1.1 var(--f-mono); font-variant-numeric: tabular-nums; }
+.chart-title { font-size: .85rem; color: var(--muted); font-weight: 600; margin-bottom: 8px; }
+.bars { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; height: 150px; border-bottom: 1px solid var(--line); }
+.bar-col { position: relative; display: grid; grid-template-rows: 18px 1fr; justify-items: center; outline: none; border-radius: 6px; }
+.bar-col:hover, .bar-col:focus-visible { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.bar-col:focus-visible { box-shadow: 0 0 0 2px var(--ink); }
+.bar-val { font: 500 .72rem var(--f-mono); color: var(--ink); white-space: nowrap; align-self: end; }
+.bar-area { width: 100%; display: flex; align-items: flex-end; justify-content: center; }
+.bar { width: min(60%, 26px); background: #E07B45; border-radius: 4px 4px 0 0; opacity: .6; }
+.bar-col.today .bar { opacity: 1; }
+.bar-day { position: absolute; top: 100%; margin-top: 4px; font-size: .74rem; color: var(--muted); white-space: nowrap; }
+.bar-col.today .bar-day { color: var(--ink); font-weight: 700; }
+.chart { padding-bottom: 22px; }
+.tip {
+  position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+  background: var(--ink); color: var(--surface); font-size: .78rem; padding: 6px 9px; border-radius: 8px;
+  width: max-content; max-width: 180px; pointer-events: none; opacity: 0; transition: opacity .15s; z-index: 2;
+}
+.bar-col:nth-child(-n+3) .tip { left: 0; transform: none; }
+.bar-col:nth-child(n+5) .tip { left: auto; right: 0; transform: none; }
+.bar-col:hover .tip, .bar-col:focus-visible .tip { opacity: 1; }
+.hint { margin: 0; color: var(--muted); font-size: .82rem; flex-basis: 100%; }
+
+/* Settings */
+.settings { display: grid; gap: 16px; }
+.set-grid { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.set-grid .field, .settings .qb .field { --c: var(--ink); }
+.set-grid .check { display: inline-flex; gap: 8px; align-items: center; font-size: .9rem; flex-basis: 100%; }
+.field input[type="range"] { width: 110px; accent-color: #E07B45; }
+.btn.small { padding: 8px 14px; font-size: .88rem; }
+.field.grow, .area.grow { flex: 1 1 14rem; }
+.field.grow input { flex: 1; min-width: 0; }
+.area { display: grid; gap: 6px; }
+.area .lbl { color: var(--muted); font-size: .82rem; }
+.area textarea {
+  width: 100%; resize: vertical; min-height: 90px; padding: 10px 12px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--surface); font: inherit; color: inherit;
+}
+
+/* Saved plans */
+.tpls { list-style: none; margin: 12px 0 10px; padding: 0; display: grid; gap: 8px; }
+.tpl {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px 14px; align-items: center;
+  padding: 10px 12px; border-radius: 14px; background: var(--field);
+}
+.tpl-main { display: grid; min-width: 0; }
+.tpl-main b { overflow-wrap: anywhere; }
+.tpl-meta { color: var(--muted); font-size: .82rem; }
+.days { display: flex; gap: 3px; }
+.day {
+  width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface);
+  font: 600 .75rem var(--f-body); color: var(--muted); padding: 0;
+}
+.day[aria-pressed="true"] { background: #2E6A8E; border-color: #2E6A8E; color: #FFFFFF; }
+.tpl-btns { display: flex; gap: 4px; align-items: center; }
+.empty.small { padding: 14px 12px; font-size: .88rem; }
+@media (max-width: 560px) { .tpl { grid-template-columns: minmax(0, 1fr) auto; } .days { grid-column: 1 / -1; grid-row: 2; } }
+
+/* Focus mode */
+body.focus-mode .progress, body.focus-mode .settings, body.focus-mode .plan,
+body.focus-mode .foot, body.focus-mode #tgl24, body.focus-mode .banner { display: none !important; }
+body.focus-mode .grid { grid-template-columns: minmax(0, 1fr); }
+body.focus-mode .side { width: 100%; max-width: 760px; margin: 0 auto; }
+body.focus-mode .timer { background: transparent; box-shadow: none; }
+body.focus-mode .dial { width: min(100%, 50vh, 520px); }
+body.focus-mode .countdown { font-size: clamp(3.2rem, 13vw, 6.5rem); }
+body.focus-mode .dial-label { font-size: clamp(1.2rem, 3vw, 1.8rem); }
+body.focus-mode .task-now { max-width: 520px; font-size: 1.1rem; }
+body.focus-mode .upnext { max-width: 520px; }
+
 .flash { animation: flash 1s ease-out; }
 @keyframes flash { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--cur) 70%, transparent); } 100% { box-shadow: 0 0 0 28px transparent; } }
 .confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
 .foot { color: var(--muted); font-size: .82rem; text-align: center; }
 @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
-@media (max-width: 480px) { .card { padding: 16px; } .times { margin-left: 0; flex-basis: 100%; } }
+@media (max-width: 480px) { .card { padding: 16px; } .times { margin-left: 0; flex-basis: 100%; } .stat .v { font-size: 1.1rem; } }

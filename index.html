@@ -4,10 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Focus Timer</title>
+<meta name="description" content="A colourful pomodoro timer where every focus session and break can be pinned to a clock time.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="icon" href="favicon.png" type="image/png" sizes="180x180">
 <link rel="apple-touch-icon" href="favicon.png">
+<link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#E07B45">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Focus Timer">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=DM+Mono:wght@400;500&family=Figtree:wght@400;500;600;700&display=swap">
@@ -23,32 +27,106 @@
     </div>
   </header>
 
+  <div class="banner" id="shareBanner" role="region" aria-label="Shared plan" hidden>
+    <p id="shareMsg">Someone shared a plan with you.</p>
+    <div class="confirm-btns">
+      <button class="btn" type="button" id="shareIgnore">Ignore</button>
+      <button class="btn primary" type="button" id="shareLoad">Load this plan</button>
+    </div>
+  </div>
+
   <main class="grid">
-    <section class="card timer" id="timerCard" aria-label="Timer">
-      <span class="chip" id="phaseChip">Ready</span>
-      <div class="dial">
-        <svg viewBox="0 0 240 240" aria-hidden="true">
-          <g id="ticks"></g>
-          <circle class="track" cx="120" cy="120" r="100" fill="none" stroke-width="16"></circle>
-          <circle class="prog" id="prog" cx="120" cy="120" r="100" fill="none" stroke-width="16" stroke-linecap="round" transform="rotate(-90 120 120)"></circle>
-        </svg>
-        <div class="dial-center">
-          <div class="dial-label" id="dialLabel">Focus</div>
-          <div class="countdown" id="countdown" role="timer" aria-live="off">25:00</div>
-          <div class="dial-sub" id="dialSub"></div>
+    <div class="side">
+      <section class="card timer" id="timerCard" aria-label="Timer">
+        <span class="chip" id="phaseChip">Ready</span>
+        <div class="dial" id="dial">
+          <svg viewBox="0 0 240 240" aria-hidden="true">
+            <g id="ticks"></g>
+            <circle class="track" cx="120" cy="120" r="100" fill="none" stroke-width="16"></circle>
+            <circle class="prog" id="prog" cx="120" cy="120" r="100" fill="none" stroke-width="16" stroke-linecap="round" transform="rotate(-90 120 120)"></circle>
+          </svg>
+          <div class="dial-center">
+            <div class="dial-label" id="dialLabel">Focus</div>
+            <div class="countdown" id="countdown" role="timer" aria-live="off">00:00</div>
+            <div class="dial-sub" id="dialSub"></div>
+          </div>
         </div>
-      </div>
-      <div class="controls">
-        <button class="btn primary" id="btnStart" type="button">Start</button>
-        <button class="btn" id="btnSkip" type="button" disabled>Skip</button>
-        <button class="btn" id="btnStop" type="button" disabled>Reset</button>
-      </div>
-      <div class="upnext" id="upNext" hidden></div>
-      <div class="toggles">
-        <button class="pill" id="tglSound" type="button" aria-pressed="true">Sound on</button>
-        <button class="pill" id="tgl24" type="button" aria-pressed="true">24-hour clock</button>
-      </div>
-    </section>
+        <label class="task-now" id="taskNow" hidden>
+          <input type="checkbox" id="taskNowDone">
+          <span><span class="k">Working on</span> <span id="taskNowText"></span></span>
+        </label>
+        <div class="controls">
+          <button class="btn primary" id="btnStart" type="button">Start</button>
+          <button class="btn" id="btnSkip" type="button" disabled>Skip</button>
+          <button class="btn" id="btnStop" type="button" disabled>Reset</button>
+        </div>
+        <div class="upnext" id="upNext" hidden></div>
+        <div class="toggles">
+          <button class="pill" id="btnFocus" type="button" aria-pressed="false" title="Shortcut: F">Focus mode</button>
+          <button class="pill" id="tgl24" type="button" aria-pressed="true">24-hour clock</button>
+        </div>
+      </section>
+
+      <section class="card progress" aria-label="Your progress">
+        <div class="plan-head">
+          <h2>Your progress</h2>
+        </div>
+        <div class="stats">
+          <div class="stat"><span class="k">Sessions today</span><span class="v" id="statSessions">0</span></div>
+          <div class="stat"><span class="k">Focus today</span><span class="v" id="statFocus">0 min</span></div>
+          <div class="stat"><span class="k">Day streak</span><span class="v" id="statStreak">0 days</span></div>
+        </div>
+        <div class="chart">
+          <div class="chart-title">Focus time, last 7 days</div>
+          <div id="weekChart" role="group" aria-label="Focus time over the last 7 days"></div>
+        </div>
+        <p class="hint">A session counts once you’ve done at least half of it.</p>
+      </section>
+
+      <section class="card settings" aria-label="Settings">
+        <div class="plan-head"><h2>Settings</h2></div>
+        <div class="set-grid">
+          <label class="field"><span class="lbl">Alert sound</span>
+            <select id="setSound">
+              <option value="chime">Chime</option>
+              <option value="bell">Bell</option>
+              <option value="beep">Soft beep</option>
+              <option value="voice">Spoken words</option>
+              <option value="off">Off</option>
+            </select>
+          </label>
+          <label class="field"><span class="lbl">Volume</span><input type="range" id="setVolume" min="0" max="100" step="5"></label>
+          <button class="btn small" type="button" id="btnTest">Test sound</button>
+          <label class="field"><span class="lbl">Warn before a block ends</span>
+            <select id="setWarn">
+              <option value="0">Off</option>
+              <option value="1">1 min</option>
+              <option value="2">2 min</option>
+              <option value="5">5 min</option>
+            </select>
+          </label>
+          <label class="check"><input type="checkbox" id="setAuto"> Start automatically at the first block’s clock time</label>
+          <p class="hint">Auto-start works while this page is open, and the first block needs a clock time. Click anywhere on the page once so sounds can play.</p>
+          <button class="btn" type="button" id="btnInstall" hidden>Install as an app</button>
+          <p class="hint" id="installHint">You can install this page as an app. In Chrome or Edge, use the install icon in the address bar. On iPhone or iPad, tap Share, then Add to Home Screen.</p>
+        </div>
+        <details class="quick" id="cheerBox">
+          <summary>Encouragement messages <span>Add your own</span></summary>
+          <div class="qb">
+            <label class="field grow"><span class="lbl">Show</span>
+              <select id="cheerMode">
+                <option value="both">Built-in and mine</option>
+                <option value="mine">Only mine</option>
+                <option value="builtin">Only built-in</option>
+              </select>
+            </label>
+            <label class="area grow" for="cheerList"><span class="lbl">My messages, one per line. They show during focus sessions.</span>
+              <textarea id="cheerList" rows="4" placeholder="I finish what I start.&#10;Today counts."></textarea>
+            </label>
+          </div>
+        </details>
+      </section>
+    </div>
 
     <section class="card plan" aria-label="Plan">
       <div class="plan-head">
@@ -65,6 +143,7 @@
         <button class="add" type="button" data-add="short" style="--c:#4A9DD8">Short break</button>
         <button class="add" type="button" data-add="long" style="--c:#3B7A35">Long break</button>
       </div>
+
       <details class="quick" id="quick">
         <summary>Quick build <span>Generate a run of sessions and breaks</span></summary>
         <form class="qb" id="qbForm">
@@ -89,12 +168,33 @@
           </div>
         </form>
       </details>
+
+      <details class="quick" id="tplBox">
+        <summary>Saved plans <span>Reuse a plan, or load it on chosen weekdays</span></summary>
+        <form class="qb" id="tplForm">
+          <label class="field grow"><span class="lbl">Name</span><input id="tplName" maxlength="40" placeholder="e.g. Workday" autocomplete="off"></label>
+          <button class="btn primary" type="submit">Save current plan</button>
+        </form>
+        <ul class="tpls" id="tplList"></ul>
+        <p class="hint">Pick weekdays on a saved plan to load it automatically the first time you open the page on those days. Each day can have one plan.</p>
+      </details>
+
+      <details class="quick" id="shareBox">
+        <summary>Share and export <span>Send your plan or add it to a calendar</span></summary>
+        <div class="qb">
+          <button class="btn primary" type="button" id="btnShare">Copy share link</button>
+          <button class="btn" type="button" id="btnIcs">Download calendar file (.ics)</button>
+          <label class="field grow" id="shareField" hidden><span class="lbl">Link</span><input id="shareUrl" readonly></label>
+          <p class="hint">The link carries the plan itself, so anyone who opens it can load their own copy. The calendar file uses the times shown in your plan, and opens in Google Calendar, Outlook and Apple Calendar.</p>
+        </div>
+      </details>
     </section>
   </main>
-  <p class="foot">Blocks with a clock time start at that time. Blocks set to “after previous” start as soon as the one before ends. Leave a length empty to run until the next pinned block. Space starts and pauses.</p>
+  <p class="foot">Blocks with a clock time start at that time. Blocks set to “after previous” start as soon as the one before ends. Leave a length empty to run until the next pinned block. Shortcuts: Space starts and pauses, F toggles focus mode.</p>
 </div>
+
 <div class="toast" id="toast" role="status" aria-live="polite" hidden>
-  <span id="toastMsg">Plan cleared.</span>
+  <span id="toastMsg"></span>
   <button type="button" class="toast-undo" id="toastUndo">Undo</button>
   <button type="button" class="toast-x" id="toastClose" aria-label="Dismiss">×</button>
   <span class="toast-bar" id="toastBar"></span>
