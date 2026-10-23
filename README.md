@@ -2,7 +2,7 @@
 
 A colourful pomodoro-style timer that runs on the clock. Plan as many focus sessions and breaks as you like, pin any of them to a real start time (for example, lunch at 13:00), and the timer follows your plan through the day. A live clock shows the current date and time to the second, and a line of encouragement at the top changes as you work.
 
-**Live page:** `https://dayolabi.github.io/timer/`
+**Live page:** `https://dayolabi.github.io/Timer/`
 
 ![Focus Timer showing the live clock, the countdown dial and today's plan](screenshot.png)
 
