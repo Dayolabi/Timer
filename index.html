@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Focus Timer</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon.png" type="image/png" sizes="180x180">
+<link rel="apple-touch-icon" href="favicon.png">
+<meta name="theme-color" content="#E07B45">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=DM+Mono:wght@400;500&family=Figtree:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <p class="cheer" id="cheer" aria-live="polite">You can do it.</p>
+    <div class="now">
+      <div class="now-time" id="nowTime">--:--<span class="sec">:--</span></div>
+      <div class="now-date"><span id="nowDate"></span> <span class="tz" id="nowTz"></span></div>
+    </div>
+  </header>
+
+  <main class="grid">
+    <section class="card timer" id="timerCard" aria-label="Timer">
+      <span class="chip" id="phaseChip">Ready</span>
+      <div class="dial">
+        <svg viewBox="0 0 240 240" aria-hidden="true">
+          <g id="ticks"></g>
+          <circle class="track" cx="120" cy="120" r="100" fill="none" stroke-width="16"></circle>
+          <circle class="prog" id="prog" cx="120" cy="120" r="100" fill="none" stroke-width="16" stroke-linecap="round" transform="rotate(-90 120 120)"></circle>
+        </svg>
+        <div class="dial-center">
+          <div class="dial-label" id="dialLabel">Focus</div>
+          <div class="countdown" id="countdown" role="timer" aria-live="off">25:00</div>
+          <div class="dial-sub" id="dialSub"></div>
+        </div>
+      </div>
+      <div class="controls">
+        <button class="btn primary" id="btnStart" type="button">Start</button>
+        <button class="btn" id="btnSkip" type="button" disabled>Skip</button>
+        <button class="btn" id="btnStop" type="button" disabled>Reset</button>
+      </div>
+      <div class="upnext" id="upNext" hidden></div>
+      <div class="toggles">
+        <button class="pill" id="tglSound" type="button" aria-pressed="true">Sound on</button>
+        <button class="pill" id="tgl24" type="button" aria-pressed="true">24-hour clock</button>
+      </div>
+    </section>
+
+    <section class="card plan" aria-label="Plan">
+      <div class="plan-head">
+        <h2>Today’s plan</h2>
+        <div class="summary" id="summary"></div>
+      </div>
+      <div class="timeline" id="timeline">
+        <div class="track-bar" id="trackBar"></div>
+        <div class="track-scale"><span id="scaleStart"></span><span id="scaleEnd"></span></div>
+      </div>
+      <ol class="blocks" id="blocks"></ol>
+      <div class="add-row">
+        <button class="add" type="button" data-add="focus" style="--c:#E07B45">Focus session</button>
+        <button class="add" type="button" data-add="short" style="--c:#4A9DD8">Short break</button>
+        <button class="add" type="button" data-add="long" style="--c:#3B7A35">Long break</button>
+      </div>
+      <details class="quick" id="quick">
+        <summary>Quick build <span>Generate a run of sessions and breaks</span></summary>
+        <form class="qb" id="qbForm">
+          <label class="field"><span class="lbl">First starts at</span><input type="time" id="qbStart"></label>
+          <label class="field"><span class="lbl">Sessions</span><input type="number" id="qbCount" min="1" max="24" value="4"></label>
+          <label class="field"><span class="lbl">Focus</span><input type="number" id="qbFocus" min="1" max="600" value="25"><span class="lbl">min</span></label>
+          <label class="field"><span class="lbl">Short break</span><input type="number" id="qbShort" min="1" max="120" value="5"><span class="lbl">min</span></label>
+          <label class="field"><span class="lbl">Long break</span><input type="number" id="qbLong" min="1" max="240" value="15"><span class="lbl">min</span></label>
+          <label class="field"><span class="lbl">Long break every</span><input type="number" id="qbEvery" min="1" max="24" value="4"><span class="lbl">sessions</span></label>
+          <label class="check"><input type="checkbox" id="qbPin" checked> Pin every block to its own clock time</label>
+          <div class="btns">
+            <button class="btn primary" type="submit" data-mode="replace">Replace plan</button>
+            <button class="btn" type="submit" data-mode="append">Add to end</button>
+            <button class="btn danger" type="button" id="btnClear">Clear all</button>
+          </div>
+          <div class="confirm" id="clearConfirm" role="alertdialog" aria-labelledby="clearMsg" hidden>
+            <p id="clearMsg">Clear every block from your plan?</p>
+            <div class="confirm-btns">
+              <button class="btn" type="button" id="clearCancel">Cancel</button>
+              <button class="btn danger-solid" type="button" id="clearYes">Yes, clear all</button>
+            </div>
+          </div>
+        </form>
+      </details>
+    </section>
+  </main>
+  <p class="foot">Blocks with a clock time start at that time. Blocks set to “after previous” start as soon as the one before ends. Leave a length empty to run until the next pinned block. Space starts and pauses.</p>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden>
+  <span id="toastMsg">Plan cleared.</span>
+  <button type="button" class="toast-undo" id="toastUndo">Undo</button>
+  <button type="button" class="toast-x" id="toastClose" aria-label="Dismiss">×</button>
+  <span class="toast-bar" id="toastBar"></span>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
