@@ -12,6 +12,8 @@ A colourful pomodoro-style timer that runs on the clock. Plan as many focus sess
 - **Unlimited sessions and breaks.** Each block has a name, a type (Focus, Short break or Long break), a colour and a length.
 - **Clock-time scheduling.** Pin a block to a start time, or let it start as soon as the one before it ends.
 - **Task notes.** Write what you'll work on in each focus session. It shows under the dial while the session runs, and you can tick it off when you're done.
+- **Drag to reorder** with the dotted handle on each block (or focus the handle and press ↑ ↓), and **duplicate** a block with one click.
+- **Repeat blocks** copies a run of blocks, such as blocks 1 to 2, as many times as you like.
 - **Quick build** generates a standard run, such as 4 × 25-minute sessions with 5-minute breaks and a long break every 4 sessions.
 - **Saved plans.** Save the current plan under a name like "Workday" and load it again with one click.
 - **Weekday repeats.** Pick days on a saved plan, and it loads automatically the first time you open the page on those days.
@@ -23,18 +25,26 @@ A colourful pomodoro-style timer that runs on the clock. Plan as many focus sess
 - **Auto-start** begins the plan at the first block's clock time, without pressing Start.
 - **Alert sounds:** chime, bell, soft beep or spoken words, with a volume control.
 - **Warning before a block ends:** a soft double tick 1, 2 or 5 minutes before the end.
+- **+5 min** adds five minutes to the current block. It's also offered for a few seconds after a session ends.
+- **Background sound** during focus sessions: rain, ocean waves, brown noise or white noise, generated in the browser.
+- **"I got distracted" button** counts interruptions during a focus session.
 - **Focus mode** hides everything except the dial, the clock and your task, and goes full screen.
 - **Countdown in the tab icon**, so you can see progress from another tab.
 - Desktop alerts when the tab is in the background, and confetti when the plan is finished.
 
 **Progress and motivation**
-- **Today's numbers:** sessions completed, total focus time and your day streak.
+- **Daily goal**, in sessions or minutes of focus, shown as a progress ring with a small celebration when you reach it.
+- **Today's numbers:** sessions completed, total focus time, your day streak and distractions.
 - **7-day chart** of focus time. Hover over or tap a bar to see that day's details.
+- **Focus rating.** After each session you can rate your focus from 1 to 5, and the average for each day shows under the chart. You can turn this off in Settings.
+- **Time by task** for the last 7 days, built from the tasks and block names you enter.
 - **Rotating encouragement**, such as "You can do it." and "Keep it up." During breaks it switches to rest messages, and you can add your own.
 
 **Sharing and apps**
 - **Share link.** Copy a link that carries your plan. Anyone who opens it can load their own copy.
 - **Calendar export.** Download an `.ics` file to add the plan to Google Calendar, Outlook or Apple Calendar.
+- **Print or save as PDF.** A clean one-page table of today's plan, with tick boxes for tasks and space for notes.
+- **Backup and restore.** Download one file with your plan, saved plans, progress and settings, and restore it on another device or after clearing your browser. A restore can be undone.
 - **Install as an app** on a phone or computer. It works offline once installed.
 
 New visitors start with an empty plan. Everything is saved in your own browser, so a page reload doesn't lose your plan, even with the timer running.
@@ -49,9 +59,9 @@ New visitors start with an empty plan. Everything is saved in your own browser, 
    - set the length in minutes
    - click **Starts after previous · set time** to pin the block to a clock time, or click **×** to unpin it
    - type a task in a focus session, and tick it when it's done
-   - use the arrows to reorder the block and **×** to delete it
+   - drag the dotted handle to reorder, use the copy icon to duplicate, and **×** to delete
 3. **Press Start**, or turn on **Start automatically** in Settings. If the first block is pinned to a later time, the timer waits and counts down to it.
-4. While it runs, use **Pause / Resume**, **Skip** (jump to the next block) and **Reset** (stop the run and keep the plan).
+4. While it runs, use **Pause / Resume**, **Skip** (jump to the next block), **Reset** (stop the run and keep the plan) and **+5 min**.
 
 **Keyboard shortcuts:** Space starts and pauses. F turns focus mode on and off. Esc leaves focus mode.
 
@@ -70,7 +80,7 @@ Clock times are matched to the nearest occurrence within 12 hours, so a plan tha
 
 ### How progress is counted
 
-A focus session counts as completed once you've spent at least half of its planned length in it, whether it runs to the end or you skip it. Focus time counts every minute the timer runs during a focus session, and pauses don't count. Your streak is the number of days in a row with at least one completed session.
+A focus session counts as completed once you've spent at least half of its planned length in it, whether it runs to the end, you skip it or you reset. Focus time counts every minute the timer runs during a focus session, and pauses don't count. Your streak is the number of days in a row with at least one completed session.
 
 ## Files
 
@@ -91,7 +101,7 @@ A focus session counts as completed once you've spent at least half of its plann
 - **Auto-start and weekday repeats** only work while the page is open. A web page can't wake itself up once it's closed.
 - **Phones** may pause the page in the background. Keep it on screen, or use focus mode, for reliable timing.
 - **Desktop alerts** need you to click **Allow** the first time you press Start. They only appear when the tab is in the background.
-- **Saved data** (plans, saved plans, progress and settings) lives in each browser's local storage. It isn't shared between devices or people, and clearing your browser data removes it. Use a share link to move a plan to another device.
+- **Saved data** (plans, saved plans, progress and settings) lives in each browser's local storage. It isn't shared between devices or people, and clearing your browser data removes it. Use **Download backup** in Settings to move everything to another device, or a share link to send just the plan.
 - **Installing:** in Chrome or Edge, use **Install as an app** in Settings or the install icon in the address bar. On iPhone or iPad, tap **Share**, then **Add to Home Screen**.
 - The screen stays awake during a run in browsers that support it.
 

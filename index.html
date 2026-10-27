@@ -59,6 +59,14 @@
           <button class="btn primary" id="btnStart" type="button">Start</button>
           <button class="btn" id="btnSkip" type="button" disabled>Skip</button>
           <button class="btn" id="btnStop" type="button" disabled>Reset</button>
+          <button class="btn" id="btnPlus" type="button" title="Add 5 minutes to this block" hidden>+5 min</button>
+        </div>
+        <button class="pill distract" id="btnDistract" type="button" title="Count an interruption. It shows in your progress." hidden>I got distracted</button>
+        <div class="rate" id="rateBox" role="group" aria-labelledby="rateQ" hidden>
+          <p id="rateQ">How was your focus?</p>
+          <div class="rate-btns" id="rateBtns"></div>
+          <div class="rate-scale" aria-hidden="true"><span>Scattered</span><span>Deep focus</span></div>
+          <button type="button" class="rate-skip" id="rateSkip">Skip</button>
         </div>
         <div class="upnext" id="upNext" hidden></div>
         <div class="toggles">
@@ -71,21 +79,39 @@
         <div class="plan-head">
           <h2>Your progress</h2>
         </div>
+        <div class="goal" id="goalRow">
+          <svg viewBox="0 0 64 64" aria-hidden="true">
+            <circle class="g-track" cx="32" cy="32" r="26" fill="none" stroke-width="8"></circle>
+            <circle class="g-prog" id="goalRing" cx="32" cy="32" r="26" fill="none" stroke-width="8" stroke-linecap="round" transform="rotate(-90 32 32)"></circle>
+          </svg>
+          <div>
+            <div class="k">Daily goal</div>
+            <div class="v" id="goalText">No daily goal yet</div>
+            <div class="s" id="goalSub"></div>
+          </div>
+        </div>
         <div class="stats">
           <div class="stat"><span class="k">Sessions today</span><span class="v" id="statSessions">0</span></div>
           <div class="stat"><span class="k">Focus today</span><span class="v" id="statFocus">0 min</span></div>
           <div class="stat"><span class="k">Day streak</span><span class="v" id="statStreak">0 days</span></div>
+          <div class="stat"><span class="k">Distractions today</span><span class="v" id="statDistract">0</span></div>
         </div>
         <div class="chart">
           <div class="chart-title">Focus time, last 7 days</div>
           <div id="weekChart" role="group" aria-label="Focus time over the last 7 days"></div>
         </div>
-        <p class="hint">A session counts once you’ve done at least half of it.</p>
+        <div class="rate-strip" id="rateStrip" hidden></div>
+        <div class="by-task">
+          <div class="chart-title">Time by task, last 7 days</div>
+          <ul class="tb" id="taskBreak"></ul>
+        </div>
+        <p class="hint">A session counts once you’ve done at least half of it. Time by task uses the task you typed, or the block’s name if there was no task.</p>
       </section>
 
       <section class="card settings" aria-label="Settings">
         <div class="plan-head"><h2>Settings</h2></div>
         <div class="set-grid">
+          <h3 class="set-sub">Alerts</h3>
           <label class="field"><span class="lbl">Alert sound</span>
             <select id="setSound">
               <option value="chime">Chime</option>
@@ -107,6 +133,38 @@
           </label>
           <label class="check"><input type="checkbox" id="setAuto"> Start automatically at the first block’s clock time</label>
           <p class="hint">Auto-start works while this page is open, and the first block needs a clock time. Click anywhere on the page once so sounds can play.</p>
+
+          <h3 class="set-sub">Background sound</h3>
+          <label class="field"><span class="lbl">During focus</span>
+            <select id="setAmb">
+              <option value="off">Off</option>
+              <option value="rain">Rain</option>
+              <option value="ocean">Ocean waves</option>
+              <option value="brown">Brown noise</option>
+              <option value="white">White noise</option>
+            </select>
+          </label>
+          <label class="field"><span class="lbl">Volume</span><input type="range" id="setAmbVol" min="0" max="100" step="5"></label>
+          <p class="hint">Plays only while a focus session runs, and stops on breaks and pauses. Picking a sound plays a short preview.</p>
+
+          <h3 class="set-sub">Goal and check-ins</h3>
+          <label class="field"><span class="lbl">Daily goal</span>
+            <input type="number" id="setGoalN" min="0" max="600" aria-label="Daily goal amount">
+            <select id="setGoalType" aria-label="Goal unit">
+              <option value="sessions">sessions</option>
+              <option value="minutes">minutes of focus</option>
+            </select>
+          </label>
+          <label class="check"><input type="checkbox" id="setRate"> Ask me to rate my focus after each session</label>
+          <p class="hint">Set the goal to 0 to turn it off.</p>
+
+          <h3 class="set-sub">Backup</h3>
+          <button class="btn small" type="button" id="btnBackup">Download backup</button>
+          <button class="btn small" type="button" id="btnRestore">Restore from backup</button>
+          <input type="file" id="restoreFile" accept=".json,application/json" hidden>
+          <p class="hint">A backup holds your plan, saved plans, progress and settings. Restore it on another device or browser, or after clearing your browser data. Restoring replaces what’s here, and you can undo it.</p>
+
+          <h3 class="set-sub">App</h3>
           <button class="btn" type="button" id="btnInstall" hidden>Install as an app</button>
           <p class="hint" id="installHint">You can install this page as an app. In Chrome or Edge, use the install icon in the address bar. On iPhone or iPad, tap Share, then Add to Home Screen.</p>
         </div>
@@ -169,6 +227,17 @@
         </form>
       </details>
 
+      <details class="quick" id="repBox">
+        <summary>Repeat blocks <span>Copy a run of blocks several times</span></summary>
+        <form class="qb" id="repForm">
+          <label class="field"><span class="lbl">From block</span><input type="number" id="repFrom" min="1" value="1"></label>
+          <label class="field"><span class="lbl">to block</span><input type="number" id="repTo" min="1" value="1"></label>
+          <label class="field"><span class="lbl">Repeat</span><input type="number" id="repTimes" min="1" max="20" value="1"><span class="lbl">more times</span></label>
+          <button class="btn primary" type="submit">Repeat</button>
+          <p class="hint">Block numbers are the ones in the coloured circles. The copies go right after the last block in the range, and each starts when the one before it ends.</p>
+        </form>
+      </details>
+
       <details class="quick" id="tplBox">
         <summary>Saved plans <span>Reuse a plan, or load it on chosen weekdays</span></summary>
         <form class="qb" id="tplForm">
@@ -184,17 +253,21 @@
         <div class="qb">
           <button class="btn primary" type="button" id="btnShare">Copy share link</button>
           <button class="btn" type="button" id="btnIcs">Download calendar file (.ics)</button>
+          <button class="btn" type="button" id="btnPrint">Print or save as PDF</button>
           <label class="field grow" id="shareField" hidden><span class="lbl">Link</span><input id="shareUrl" readonly></label>
           <p class="hint">The link carries the plan itself, so anyone who opens it can load their own copy. The calendar file uses the times shown in your plan, and opens in Google Calendar, Outlook and Apple Calendar.</p>
         </div>
       </details>
     </section>
   </main>
-  <p class="foot">Blocks with a clock time start at that time. Blocks set to “after previous” start as soon as the one before ends. Leave a length empty to run until the next pinned block. Shortcuts: Space starts and pauses, F toggles focus mode.</p>
+  <p class="foot">Blocks with a clock time start at that time. Blocks set to “after previous” start as soon as the one before ends. Leave a length empty to run until the next pinned block. Drag the dotted handle to reorder. Shortcuts: Space starts and pauses, F toggles focus mode.</p>
 </div>
+
+<div class="print-view" id="printView"></div>
 
 <div class="toast" id="toast" role="status" aria-live="polite" hidden>
   <span id="toastMsg"></span>
+  <button type="button" class="toast-undo" id="toastAlt" hidden></button>
   <button type="button" class="toast-undo" id="toastUndo">Undo</button>
   <button type="button" class="toast-x" id="toastClose" aria-label="Dismiss">×</button>
   <span class="toast-bar" id="toastBar"></span>
