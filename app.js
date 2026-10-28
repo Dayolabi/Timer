@@ -68,6 +68,7 @@
   const AMB_NAME = { rain: 'rain', ocean: 'ocean waves', brown: 'brown noise', white: 'white noise' };
   const monthFmt = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' });
   const ambBufs = {};
+  const PAGE_TITLE = document.title;
   const iconLinks = [...document.querySelectorAll('link[rel="icon"]')];
   const iconOrig = iconLinks.map((l) => [l.getAttribute('href'), l.getAttribute('type')]);
   const iconCanvas = document.createElement('canvas');
@@ -1031,7 +1032,7 @@
     $('btnStop').disabled = !run;
     $('tgl24').setAttribute('aria-pressed', String(state.h24));
     $('tgl24').textContent = state.h24 ? '24-hour clock' : '12-hour clock';
-    document.title = run && st.mode !== 'done' ? `${cd} · ${label}` : 'Focus Timer';
+    document.title = run && st.mode !== 'done' ? `${cd} · ${label}` : PAGE_TITLE;
     updateIcon(!!run && (st.mode === 'block' || st.mode === 'wait' || st.mode === 'gap'), color, dashed ? 0 : frac, rem, paused);
     cheerMood(st.mode === 'block' ? tl[st.i].b.kind : st.mode);
   }

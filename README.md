@@ -115,6 +115,8 @@ A focus session counts as completed once you've spent at least half of its plann
 | `favicon.svg`, `favicon.png` | Clock icon for the browser tab and iPhone home screen |
 | `icon-192.png`, `icon-512.png`, `icon-maskable-512.png` | App icons for Android, Chrome and Edge |
 | `screenshot.png` | Image used in this README |
+| `og-image.png` | Preview image shown when the link is shared |
+| `sitemap.xml` | Page list for Google Search Console |
 
 ## Browser notes
 
