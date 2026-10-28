@@ -47,8 +47,12 @@
     history: {}, cheers: [], cheerMode: 'both',
     goal: { type: 'sessions', n: 0 }, goalHit: '',
     amb: 'off', ambVol: 0.5, askRate: true,
+    theme: 'system', mode: 'simple',
   };
-  let state = Object.assign({}, DEFAULTS, load() || {});
+  const stored = load();
+  let state = Object.assign({}, DEFAULTS, stored || {});
+  // People who used the page before modes existed keep everything they had.
+  if (stored && !stored.mode) state.mode = 'full';
   if (state.sound === true) state.sound = 'chime';
   if (state.sound === false) state.sound = 'off';
 
@@ -59,6 +63,10 @@
   let cheerSet = 'work', cheerLast = '', cheerAt = 0;
   let qbMode = 'replace', sharedBlocks = null, repEdited = false;
   let drag = null, amb = null, ambPreviewUntil = 0, ratePending = null;
+  let view = 'today', hmOffset = 0, hmSig = '';
+  const VIEWS = ['today', 'plans', 'progress', 'settings'];
+  const AMB_NAME = { rain: 'rain', ocean: 'ocean waves', brown: 'brown noise', white: 'white noise' };
+  const monthFmt = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' });
   const ambBufs = {};
   const iconLinks = [...document.querySelectorAll('link[rel="icon"]')];
   const iconOrig = iconLinks.map((l) => [l.getAttribute('href'), l.getAttribute('type')]);
@@ -75,7 +83,11 @@
     } catch (e) {}
     return null;
   }
-  function save() { lastSave = Date.now(); try { localStorage.setItem(LS, JSON.stringify(state)); } catch (e) {} }
+  function save() {
+    lastSave = Date.now();
+    try { localStorage.setItem(LS, JSON.stringify(state)); } catch (e) {}
+    renderSimpleNote();
+  }
 
   function mk(kind, extra = {}) {
     const k = KINDS[kind];
@@ -490,7 +502,7 @@
     return (state.history[k] = state.history[k] || { s: 0, f: 0 });
   }
   function pruneHistory(now) {
-    const keep = dayKey(now - 120 * 24 * 60 * MIN);
+    const keep = dayKey(now - 400 * 24 * 60 * MIN);
     Object.keys(state.history).forEach((k) => { if (k < keep) delete state.history[k]; });
   }
   // Called when the timer moves on from a block. Counts the session, logs it
@@ -585,6 +597,7 @@
     $('statStreak').textContent = plural(sk, 'day');
     $('statDistract').textContent = td.d || 0;
     renderGoal(now);
+    renderHeatmap(now);
 
     const days = weekDays(now);
     const sig = JSON.stringify(days.map((x) => [dayKey(x.d.getTime()), Math.floor(x.f / MIN), x.s, x.log.map((e) => [e.n, Math.floor(e.s / 60), e.r])]));
@@ -623,6 +636,101 @@
     $('taskBreak').innerHTML = rows.length
       ? rows.map((r) => `<li${r.other ? ' class="other"' : ''}><span class="tb-name" title="${esc(r.n)}">${esc(r.n)}</span><span class="tb-track"><span class="tb-bar" style="width:${Math.max(2, (r.s / top) * 100)}%"></span></span><span class="tb-val">${fmtSpan(r.s * 1000)}</span></li>`).join('')
       : '<li class="empty small">Finish a focus session to see where your time goes.</li>';
+  }
+
+  /* ---------- monthly heatmap ---------- */
+  const HM_LEVELS = ['no focus', 'under 30 min', '30 min to 1 hour', '1 to 2 hours', '2 hours or more'];
+  const hmLevel = (f) => f < MIN ? 0 : f < 30 * MIN ? 1 : f < 60 * MIN ? 2 : f < 120 * MIN ? 3 : 4;
+  function hmMonth(now) {
+    const d = new Date(now); d.setHours(12, 0, 0, 0); d.setDate(1); d.setMonth(d.getMonth() + hmOffset);
+    return d;
+  }
+  function hmDesc(d, h) {
+    return `${fullDayFmt.format(d)}: ${h.f >= MIN ? fmtSpan(h.f) : 'no'} focus, ${plural(h.s || 0, 'session')}`;
+  }
+  function renderHeatmap(now) {
+    const first = hmMonth(now), y = first.getFullYear(), m = first.getMonth();
+    const days = new Date(y, m + 1, 0).getDate(), lead = (first.getDay() + 6) % 7;
+    const tk = dayKey(now), cells = [];
+    for (let i = 1; i <= days; i++) {
+      const d = new Date(y, m, i, 12), k = dayKey(d.getTime());
+      const h = state.history[k] || { s: 0, f: 0 };
+      cells.push({ d, k, h, future: k > tk, today: k === tk });
+    }
+    const sig = [y, m, tk, cells.map((c) => hmLevel(c.h.f) + ':' + Math.floor(c.h.f / MIN) + ':' + (c.h.s || 0)).join()].join('|');
+    if (sig === hmSig) return;
+    hmSig = sig;
+    $('hmTitle').textContent = monthFmt.format(first);
+    $('hmPrev').disabled = hmOffset <= -12;
+    $('hmNext').disabled = hmOffset >= 0;
+    // Weekday headings, Monday first. 1 Jan 2024 was a Monday.
+    const heads = WEEK_ORDER.map((_, i) => `<span class="hm-wd" aria-hidden="true">${wdFmt.format(new Date(2024, 0, 1 + i))}</span>`).join('');
+    const blanks = '<span class="hm-blank"></span>'.repeat(lead);
+    $('heatmap').innerHTML = heads + blanks + cells.map((c) => {
+      const lv = c.future ? 0 : hmLevel(c.h.f);
+      const label = c.future ? `${fullDayFmt.format(c.d)}: not yet` : hmDesc(c.d, c.h) + (lv ? ` (${HM_LEVELS[lv]})` : '');
+      return `<span class="hm-day l${lv}${c.today ? ' today' : ''}${c.future ? ' future' : ''}" tabindex="0" role="img" data-k="${c.k}" aria-label="${label}"><span class="hm-n">${c.d.getDate()}</span></span>`;
+    }).join('');
+    const past = cells.filter((c) => !c.future);
+    const total = past.reduce((a, c) => a + c.h.f, 0);
+    const active = past.filter((c) => c.h.f >= MIN).length;
+    const best = past.reduce((a, c) => (c.h.f > (a ? a.h.f : 0) ? c : a), null);
+    $('hmDetail').textContent = total >= MIN
+      ? `${fmtSpan(total)} of focus on ${plural(active, 'day')}` + (best ? `. Best day: ${fullDayFmt.format(best.d)}, ${fmtSpan(best.h.f)}.` : '.')
+      : 'No focus time recorded this month yet.';
+    $('hmDetail').dataset.base = $('hmDetail').textContent;
+  }
+
+  /* ---------- tabs, mode and theme ---------- */
+  function showView(v, push) {
+    if (!VIEWS.includes(v) || (v === 'plans' && state.mode === 'simple')) v = 'today';
+    view = v;
+    document.querySelectorAll('.view').forEach((el) => el.classList.toggle('active', el.dataset.view === v));
+    document.querySelectorAll('a.tab').forEach((a) => { if (a.dataset.view === v) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+    if (push && location.hash !== '#' + v) {
+      try { history.pushState(null, '', '#' + v); } catch (e) {}
+    }
+  }
+  function route() {
+    const h = location.hash.slice(1);
+    if (h.startsWith('plan=')) { showView('today'); return; }
+    showView(h || 'today');
+    window.scrollTo(0, 0);
+  }
+  function isDark() {
+    return state.theme === 'dark' || (state.theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+  }
+  function applyTheme() {
+    const el = document.documentElement;
+    if (state.theme === 'light' || state.theme === 'dark') el.setAttribute('data-theme', state.theme);
+    else el.removeAttribute('data-theme');
+    document.querySelectorAll('[data-theme-set]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.themeSet === state.theme)));
+    const dark = isDark();
+    $('btnTheme').classList.toggle('is-dark', dark);
+    $('themeLabel').textContent = dark ? 'Light' : 'Dark';
+    $('btnTheme').setAttribute('aria-label', dark ? 'Switch to light theme' : 'Switch to dark theme');
+    $('btnTheme').title = $('btnTheme').getAttribute('aria-label');
+  }
+  function applyMode() {
+    document.documentElement.classList.toggle('simple', state.mode === 'simple');
+    document.querySelectorAll('[data-mode-set]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.modeSet === state.mode)));
+    if (state.mode === 'simple' && view === 'plans') showView('today', true);
+    renderSimpleNote();
+  }
+  // In Simple mode, say which Full-mode features are still switched on.
+  function renderSimpleNote() {
+    const el = $('simpleNote');
+    if (!el) return;
+    const on = [];
+    if (state.mode === 'simple') {
+      if (state.autoStart) on.push('auto-start');
+      const days = state.templates.filter((t) => t.days.length);
+      if (days.length) on.push(`weekday plans (${days.map((t) => t.name).join(', ')})`);
+      if (state.amb !== 'off') on.push(`background sound (${AMB_NAME[state.amb]})`);
+      if (state.goal && state.goal.n > 0) on.push('daily goal');
+    }
+    el.hidden = !on.length;
+    if (on.length) el.innerHTML = `Still on from Full mode: ${esc(on.join(', '))}. <button type="button" class="linkish" data-mode-set="full">Switch to Full</button> to change them.`;
   }
 
   /* ---------- tab icon ---------- */
@@ -682,6 +790,7 @@
 
   /* ---------- focus mode ---------- */
   function setFocusMode(on) {
+    if (on && view !== 'today') showView('today', true);
     document.body.classList.toggle('focus-mode', on);
     $('btnFocus').setAttribute('aria-pressed', String(on));
     $('btnFocus').textContent = on ? 'Exit focus mode' : 'Focus mode';
@@ -775,9 +884,11 @@
         };
       });
     }
-    ['h24', 'sound', 'volume', 'warnMin', 'autoStart', 'cheerMode', 'amb', 'ambVol', 'askRate', 'goalHit', 'autoLoaded'].forEach((k) => {
+    ['h24', 'sound', 'volume', 'warnMin', 'autoStart', 'cheerMode', 'amb', 'ambVol', 'askRate', 'goalHit', 'autoLoaded', 'theme', 'mode'].forEach((k) => {
       if (typeof s[k] === typeof DEFAULTS[k]) out[k] = s[k];
     });
+    if (!['system', 'light', 'dark'].includes(out.theme)) out.theme = 'system';
+    if (!['simple', 'full'].includes(out.mode)) out.mode = 'full';
     if (s.goal && ['sessions', 'minutes'].includes(s.goal.type) && +s.goal.n >= 0) out.goal = { type: s.goal.type, n: Math.min(600, Math.round(+s.goal.n)) };
     return out;
   }
@@ -1277,6 +1388,7 @@
     const before = snapshot();
     state.blocks = sharedBlocks; state.run = null; lastKey = null; lastBlockId = null; keepAwake(false);
     sharedBlocks = null; $('shareBanner').hidden = true; clearHash();
+    showView('today');
     changed(true);
     showToast('Shared plan loaded.', { action: 'Undo', onAction: () => restore(before, 'Your previous plan is back.') });
   });
@@ -1349,6 +1461,34 @@
   $('btnStop').addEventListener('click', reset);
   $('tgl24').addEventListener('click', () => { state.h24 = !state.h24; tlSig = ''; renderTemplates(); changed(false); });
   $('btnFocus').addEventListener('click', () => setFocusMode(!document.body.classList.contains('focus-mode')));
+  // Tabs, mode, theme and heatmap
+  window.addEventListener('hashchange', route);
+  window.addEventListener('popstate', route);
+  document.addEventListener('click', (e) => {
+    const m = e.target.closest('[data-mode-set]');
+    if (m) {
+      state.mode = m.dataset.modeSet; applyMode(); save();
+      showToast(state.mode === 'full' ? 'Full mode. Everything is shown.' : 'Simple mode. Your Full-mode settings keep working.');
+      return;
+    }
+    const t = e.target.closest('[data-theme-set]');
+    if (t) { state.theme = t.dataset.themeSet; applyTheme(); save(); }
+  });
+  $('btnTheme').addEventListener('click', () => { state.theme = isDark() ? 'light' : 'dark'; applyTheme(); save(); });
+  try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme); } catch (e) {}
+  $('hmPrev').addEventListener('click', () => { hmOffset = Math.max(-12, hmOffset - 1); renderHeatmap(Date.now()); });
+  $('hmNext').addEventListener('click', () => { hmOffset = Math.min(0, hmOffset + 1); renderHeatmap(Date.now()); });
+  function hmShow(e) {
+    const c = e.target.closest('.hm-day');
+    if (c) $('hmDetail').textContent = c.getAttribute('aria-label');
+  }
+  function hmReset() { $('hmDetail').textContent = $('hmDetail').dataset.base || ''; }
+  $('heatmap').addEventListener('mouseover', hmShow);
+  $('heatmap').addEventListener('focusin', hmShow);
+  $('heatmap').addEventListener('click', hmShow);
+  $('heatmap').addEventListener('mouseleave', hmReset);
+  $('heatmap').addEventListener('focusout', hmReset);
+
   $('btnPlus').addEventListener('click', () => {
     const now = state.run && (state.run.pausedAt || Date.now());
     if (!now) return;
@@ -1453,8 +1593,11 @@
     $('setRate').checked = !!state.askRate;
     $('cheerMode').value = state.cheerMode;
     $('cheerList').value = (state.cheers || []).join('\n');
+    applyTheme();
+    applyMode();
   }
   syncSettings();
+  route();
   $('rateBtns').innerHTML = [1, 2, 3, 4, 5].map((r) => `<button type="button" class="rate-btn" data-r="${r}" title="${RATE_WORDS[r]}" aria-label="${r}: ${RATE_WORDS[r]}">${r}</button>`).join('');
 
   sharedBlocks = readShared();

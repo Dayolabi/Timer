@@ -6,6 +6,26 @@ A colourful pomodoro-style timer that runs on the clock. Plan as many focus sess
 
 ![Focus Timer showing the live clock, the countdown dial and today's plan](screenshot.png)
 
+## Layout and modes
+
+The page has four tabs: **Today** (timer and plan), **Plans** (repeat, saved plans, sharing and printing), **Progress** and **Settings**. On phones the tabs sit in a bar at the bottom of the screen. Each tab has its own address, such as `…/Timer/#progress`, so the back button and bookmarks work. The timer keeps running when you switch tabs.
+
+There are two modes, which you can switch in **Settings → Appearance and mode**:
+
+| | Simple | Full |
+| --- | --- | --- |
+| Timer, plan, quick build, clear all, focus mode, +5 min | ✓ | ✓ |
+| Alert sound, volume, end-of-block warning | ✓ | ✓ |
+| Sessions, focus time, streak and the 7-day chart | ✓ | ✓ |
+| Backup and restore, light and dark theme | ✓ | ✓ |
+| Plans tab: repeat blocks, saved plans, share link, calendar file, print | | ✓ |
+| Daily goal, distractions, focus ratings, monthly heatmap, time by task | | ✓ |
+| Background sound, auto-start, custom encouragement messages | | ✓ |
+
+New visitors start in Simple. Anything set up in Full keeps working in Simple. For example, auto-start still starts the plan and the background sound still plays. A short note on the Today tab lists what's still switched on.
+
+**Theme:** System (follows your device), Light or Dark. Choose it in Settings, or use the sun/moon button at the end of the tab bar.
+
 ## Features
 
 **Planning**
@@ -36,6 +56,7 @@ A colourful pomodoro-style timer that runs on the clock. Plan as many focus sess
 - **Daily goal**, in sessions or minutes of focus, shown as a progress ring with a small celebration when you reach it.
 - **Today's numbers:** sessions completed, total focus time, your day streak and distractions.
 - **7-day chart** of focus time. Hover over or tap a bar to see that day's details.
+- **Monthly heatmap**, like GitHub's contribution graph but for one month. Darker green means more focus time (under 30 min, 30 min to 1 hour, 1 to 2 hours, 2 hours or more). Hover over or tap a day for details. Go back up to 12 months.
 - **Focus rating.** After each session you can rate your focus from 1 to 5, and the average for each day shows under the chart. You can turn this off in Settings.
 - **Time by task** for the last 7 days, built from the tasks and block names you enter.
 - **Rotating encouragement**, such as "You can do it." and "Keep it up." During breaks it switches to rest messages, and you can add your own.
@@ -51,7 +72,7 @@ New visitors start with an empty plan. Everything is saved in your own browser, 
 
 ## How to use it
 
-1. **Build your plan.** Add blocks with **Focus session**, **Short break** or **Long break**, open **Quick build**, or load one of your **Saved plans**.
+1. **Build your plan.** Add blocks with **Focus session**, **Short break** or **Long break**, open **Quick build**, or load one of your **Saved plans** (Plans tab).
 2. **Set the times.** In each block you can:
    - click the name to rename it
    - change the type from the drop-down

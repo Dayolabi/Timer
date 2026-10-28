@@ -1,6 +1,6 @@
 // Offline support. Page files are fetched from the network first so updates
 // show up straight away, with the cached copy used when offline.
-const CACHE = 'focus-timer-v4';
+const CACHE = 'focus-timer-v5';
 const SHELL = [
   './', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest',
   'favicon.svg', 'favicon.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png',
