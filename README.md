@@ -14,13 +14,15 @@ There are two modes, which you can switch in **Settings → Appearance and mode*
 
 | | Simple | Full |
 | --- | --- | --- |
-| Timer, plan, quick build, clear all, focus mode, +5 min | ✓ | ✓ |
+| Timer, plan, quick build, ready-made plans, clear all, focus mode, mini timer, +5 min | ✓ | ✓ |
+| Break ideas, reminder when paused too long, keyboard shortcuts | ✓ | ✓ |
 | Alert sound, volume, end-of-block warning | ✓ | ✓ |
 | Sessions, focus time, streak and the 7-day chart | ✓ | ✓ |
 | Backup and restore, light and dark theme | ✓ | ✓ |
 | Plans tab: repeat blocks, saved plans, share link, calendar file, print | | ✓ |
-| Daily goal, distractions, focus ratings, monthly heatmap, time by task | | ✓ |
-| Background sound, auto-start, custom encouragement messages | | ✓ |
+| Task inbox, projects, note for the day | | ✓ |
+| Daily goal, distractions, focus ratings, monthly heatmap, time by task and by project, weekly summary, CSV download | | ✓ |
+| Background sound, auto-start, keep counting past the end, custom encouragement messages | | ✓ |
 
 New visitors start in Simple. Anything set up in Full keeps working in Simple. For example, auto-start still starts the plan and the background sound still plays. A short note on the Today tab lists what's still switched on.
 
@@ -34,6 +36,9 @@ New visitors start in Simple. Anything set up in Full keeps working in Simple. F
 - **Task notes.** Write what you'll work on in each focus session. It shows under the dial while the session runs, and you can tick it off when you're done.
 - **Drag to reorder** with the dotted handle on each block (or focus the handle and press ↑ ↓), and **duplicate** a block with one click.
 - **Repeat blocks** copies a run of blocks, such as blocks 1 to 2, as many times as you like.
+- **Ready-made plans:** Classic pomodoro, Study day, Workday and 52 / 17, offered on an empty plan and in Quick build.
+- **Task inbox** for things to do later. Drag a task onto a focus session, or press **Add to plan** to put it in the next free one. When you delete or replace blocks, their unfinished tasks go back to the inbox.
+- **Projects.** Give a focus session a project, such as Work or Study, and see time per project on the Progress tab.
 - **Quick build** generates a standard run, such as 4 × 25-minute sessions with 5-minute breaks and a long break every 4 sessions.
 - **Saved plans.** Save the current plan under a name like "Workday" and load it again with one click.
 - **Weekday repeats.** Pick days on a saved plan, and it loads automatically the first time you open the page on those days.
@@ -46,6 +51,10 @@ New visitors start in Simple. Anything set up in Full keeps working in Simple. F
 - **Alert sounds:** chime, bell, soft beep or spoken words, with a volume control.
 - **Warning before a block ends:** a soft double tick 1, 2 or 5 minutes before the end.
 - **+5 min** adds five minutes to the current block. It's also offered for a few seconds after a session ends.
+- **Keep going past the end** (optional). A focus session keeps counting after its planned time until you press **Finish**. It stops at a block pinned to a clock time.
+- **Break ideas** during breaks, such as stretching or drinking water.
+- **Pause reminder** with a sound and a Resume button if the timer has been paused for 5, 10, 15 or 30 minutes.
+- **Mini timer** in a small window that stays on top of other apps (Chrome and Edge).
 - **Background sound** during focus sessions: rain, ocean waves, brown noise or white noise, generated in the browser.
 - **"I got distracted" button** counts interruptions during a focus session.
 - **Focus mode** hides everything except the dial, the clock and your task, and goes full screen.
@@ -56,9 +65,12 @@ New visitors start in Simple. Anything set up in Full keeps working in Simple. F
 - **Daily goal**, in sessions or minutes of focus, shown as a progress ring with a small celebration when you reach it.
 - **Today's numbers:** sessions completed, total focus time, your day streak and distractions.
 - **7-day chart** of focus time. Hover over or tap a bar to see that day's details.
-- **Monthly heatmap**, like GitHub's contribution graph but for one month. Darker green means more focus time (under 30 min, 30 min to 1 hour, 1 to 2 hours, 2 hours or more). Hover over or tap a day for details. Go back up to 12 months.
+- **Monthly heatmap**, like GitHub's contribution graph but for one month. Darker green means more focus time (under 30 min, 30 min to 1 hour, 1 to 2 hours, 2 to 5 hours, 5 hours or more). In the dark theme, brighter green means more. Hover over or tap a day for details. Go back up to 12 months.
 - **Focus rating.** After each session you can rate your focus from 1 to 5, and the average for each day shows under the chart. You can turn this off in Settings.
-- **Time by task** for the last 7 days, built from the tasks and block names you enter.
+- **Time by task** for the last 7 days, built from the tasks and block names you enter, and **time by project** for 7 or 30 days.
+- **This week:** focus time so far compared with the same days last week, all of last week, and your best day.
+- **Note for the day,** shown as a dot on the heatmap. You're offered a note when you finish a plan.
+- **CSV download** of daily totals or of every session, for Excel, Google Sheets or Numbers.
 - **Rotating encouragement**, such as "You can do it." and "Keep it up." During breaks it switches to rest messages, and you can add your own.
 
 **Sharing and apps**
@@ -84,7 +96,9 @@ New visitors start with an empty plan. Everything is saved in your own browser, 
 3. **Press Start**, or turn on **Start automatically** in Settings. If the first block is pinned to a later time, the timer waits and counts down to it.
 4. While it runs, use **Pause / Resume**, **Skip** (jump to the next block), **Reset** (stop the run and keep the plan) and **+5 min**.
 
-**Keyboard shortcuts:** Space starts and pauses. F turns focus mode on and off. Esc leaves focus mode.
+**Keyboard shortcuts:** Space starts and pauses, S skips (or finishes a session that's running over), + adds 5 minutes, F toggles focus mode, M opens the mini timer, D counts a distraction, 1 to 4 switch tabs, and ? shows the full list. Esc leaves focus mode.
+
+**Feedback:** use the **Send feedback** link on the page, which opens a new issue on this repository.
 
 ### How scheduling works
 

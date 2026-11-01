@@ -26,8 +26,24 @@
     dup: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><rect x="5.5" y="5.5" width="8" height="8" rx="2"/><path d="M10.5 3.5V3a1.5 1.5 0 0 0-1.5-1.5H4A1.5 1.5 0 0 0 2.5 3v5A1.5 1.5 0 0 0 4 9.5h.5"/></svg>',
   };
   const RATE_WORDS = ['', 'Scattered', 'Distracted', 'Okay', 'Good', 'Deep focus'];
+  const BREAK_IDEAS = {
+    short: ['Stand up and stretch your arms over your head.', 'Drink a glass of water.',
+      'Look at something about 6 metres away for 20 seconds.', 'Roll your shoulders back a few times.',
+      'Take five slow, deep breaths.', 'Walk around the room.', 'Close your eyes and rest them for a minute.',
+      'Gently turn your head left and right.', 'Shake out your hands and wrists.', 'Stand up and sit back down a few times.'],
+    long: ['Go for a short walk, outside if you can.', 'Have a snack and some water.', 'Step away from the screen completely.',
+      'Get some fresh air.', 'Do a few minutes of gentle stretching.', 'Tidy up your space, then come back fresh.'],
+  };
+  // Ready-made plans: [kind, name (0 = default), minutes]
+  const SAMPLES = [
+    { name: 'Classic pomodoro', desc: '4 × 25 min with short breaks', plan: [['focus', 'Focus 1', 25], ['short', 0, 5], ['focus', 'Focus 2', 25], ['short', 0, 5], ['focus', 'Focus 3', 25], ['short', 0, 5], ['focus', 'Focus 4', 25], ['long', 0, 15]] },
+    { name: 'Study day', desc: '50 min sessions and a lunch break', plan: [['focus', 'Study 1', 50], ['short', 0, 10], ['focus', 'Study 2', 50], ['short', 0, 10], ['focus', 'Study 3', 50], ['long', 'Lunch', 45], ['focus', 'Study 4', 50], ['short', 0, 10], ['focus', 'Review', 25]] },
+    { name: 'Workday', desc: '90 min deep work blocks', plan: [['focus', 'Deep work', 90], ['short', 0, 15], ['focus', 'Deep work', 90], ['long', 'Lunch', 60], ['focus', 'Emails and admin', 45], ['short', 0, 10], ['focus', 'Deep work', 60], ['short', 0, 5], ['focus', 'Plan tomorrow', 15]] },
+    { name: '52 / 17', desc: '52 min focus, 17 min breaks', plan: [['focus', 'Focus 1', 52], ['short', 'Break', 17], ['focus', 'Focus 2', 52], ['short', 'Break', 17], ['focus', 'Focus 3', 52], ['short', 'Break', 17], ['focus', 'Focus 4', 52]] },
+  ];
   const C = 2 * Math.PI * 100;
   const GC = 2 * Math.PI * 26;
+  const PC = 2 * Math.PI * 52;
 
   /* ---------- helpers ---------- */
   const $ = (id) => document.getElementById(id);
@@ -48,6 +64,7 @@
     goal: { type: 'sessions', n: 0 }, goalHit: '',
     amb: 'off', ambVol: 0.5, askRate: true,
     theme: 'system', mode: 'simple',
+    inbox: [], breakIdeas: true, pauseRemind: 10, overtime: false,
   };
   const stored = load();
   let state = Object.assign({}, DEFAULTS, stored || {});
@@ -64,6 +81,7 @@
   let qbMode = 'replace', sharedBlocks = null, repEdited = false;
   let drag = null, amb = null, ambPreviewUntil = 0, ratePending = null;
   let view = 'today', hmOffset = 0, hmSig = '';
+  let pip = null, pipSig = '', projDays = 7, weekSig = '', projSig = '', idrag = null, pauseWarned = 0;
   const VIEWS = ['today', 'plans', 'progress', 'settings'];
   const AMB_NAME = { rain: 'rain', ocean: 'ocean waves', brown: 'brown noise', white: 'white noise' };
   const monthFmt = new Intl.DateTimeFormat(undefined, { month: 'long', year: 'numeric' });
@@ -76,6 +94,8 @@
   const dateFmt = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const wdFmt = new Intl.DateTimeFormat(undefined, { weekday: 'short' });
   const fullDayFmt = new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'short' });
+  const sinceFmt = new Intl.DateTimeFormat(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
+  const keyDate = (k) => new Date(k + 'T12:00:00');
 
   function load() {
     try {
@@ -92,12 +112,13 @@
 
   function mk(kind, extra = {}) {
     const k = KINDS[kind];
-    return Object.assign({ id: uid(), kind, label: k.label, color: k.color, at: '', dur: k.dur, task: '', taskDone: false }, extra);
+    return Object.assign({ id: uid(), kind, label: k.label, color: k.color, at: '', dur: k.dur, task: '', taskDone: false, proj: '' }, extra);
   }
-  const snapshot = () => JSON.stringify({ blocks: state.blocks, run: state.run });
+  const snapshot = () => JSON.stringify({ blocks: state.blocks, run: state.run, inbox: state.inbox });
   function restore(snap, msg = 'Restored.') {
     const d = JSON.parse(snap);
     state.blocks = d.blocks; state.run = d.run;
+    if (d.inbox) state.inbox = d.inbox;
     lastKey = null; lastBlockId = null;
     if (state.run && !state.run.pausedAt) keepAwake(true);
     changed(true);
@@ -203,7 +224,8 @@
     if (+$('repFrom').value > B.length) $('repFrom').value = 1;
     if (!repEdited || +$('repTo').value > B.length) $('repTo').value = Math.max(1, B.length);
     if (!B.length) {
-      el.innerHTML = '<li class="empty">Your plan is empty. Add a focus session or a break below, open Quick build, or load a saved plan.</li>';
+      el.innerHTML = `<li class="empty">Your plan is empty. Add a focus session or a break below, or start from a ready-made plan:<div class="samples">${sampleBtns()}</div></li>`;
+      renderProjList();
       return;
     }
     el.innerHTML = B.map((b, i) => {
@@ -214,7 +236,10 @@
       const task = b.kind === 'focus'
         ? `<label class="field task-field"><input type="checkbox" class="task-done" id="td-${b.id}" ${b.taskDone ? 'checked' : ''} aria-label="Task done"><input class="task-in${b.taskDone ? ' is-done' : ''}" id="task-${b.id}" value="${esc(b.task || '')}" placeholder="What will you work on? (optional)" maxlength="200" aria-label="Task for this session"></label>`
         : '';
-      return `<li class="block" data-id="${b.id}" style="--c:${b.color}">
+      const proj = b.kind === 'focus'
+        ? `<label class="field proj-field" data-full><span class="lbl">Project</span><input class="proj-in" id="proj-${b.id}" list="projList" value="${esc(b.proj || '')}" maxlength="40" placeholder="None" aria-label="Project for this session"></label>`
+        : '';
+      return `<li class="block" data-id="${b.id}" data-kind="${b.kind}" style="--c:${b.color}">
         <button type="button" class="swatch" data-act="color" aria-label="Change colour" title="Change colour">${i + 1}</button>
         <input class="label-in" id="lbl-${b.id}" value="${esc(b.label)}" aria-label="Block name" maxlength="60">
         <div class="row-actions">
@@ -226,12 +251,83 @@
           <label class="field"><select class="kind-in" id="kind-${b.id}" aria-label="Block type">${kinds}</select></label>
           ${start}
           <label class="field"><span class="lbl">Length</span><input type="number" class="dur-in" id="dur-${b.id}" min="1" max="600" value="${b.dur || ''}"><span class="lbl">min</span></label>
+          ${proj}
           <span class="times"></span>
           ${task}
           <span class="warn" hidden></span>
         </div>
       </li>`;
     }).join('');
+    renderProjList();
+  }
+  const sampleBtns = () => SAMPLES.map((x, i) => `<button type="button" class="sample" data-sample="${i}"><b>${x.name}</b><span>${x.desc}</span></button>`).join('');
+  function projNames() {
+    const seen = new Map();
+    const add = (v) => { v = (v || '').trim(); if (v && !seen.has(v.toLowerCase())) seen.set(v.toLowerCase(), v); };
+    state.blocks.forEach((b) => add(b.proj));
+    state.templates.forEach((t) => t.blocks.forEach((b) => add(b.proj)));
+    Object.values(state.history).forEach((h) => (h.log || []).forEach((e) => add(e.p)));
+    return [...seen.values()].sort((a, b) => a.localeCompare(b));
+  }
+  function renderProjList() { $('projList').innerHTML = projNames().map((v) => `<option value="${esc(v)}">`).join(''); }
+
+  // Unfinished tasks from blocks that leave the plan go to the task inbox.
+  function rescueTasks(oldBlocks, newBlocks) {
+    const kept = new Set((newBlocks || []).map((b) => (b.task || '').trim().toLowerCase()));
+    const have = new Set(state.inbox.filter((i) => !i.done).map((i) => i.t.toLowerCase()));
+    let n = 0;
+    oldBlocks.forEach((b) => {
+      const t = (b.task || '').trim(), low = t.toLowerCase();
+      if (b.kind !== 'focus' || !t || b.taskDone || kept.has(low) || have.has(low)) return;
+      have.add(low);
+      state.inbox.push({ id: uid(), t, done: false, k: dayKey(Date.now()) });
+      n++;
+    });
+    if (state.inbox.length > 100) state.inbox = state.inbox.slice(-100);
+    return n;
+  }
+  const movedNote = (n) => (n && state.mode === 'full' ? ` ${plural(n, 'unfinished task')} moved to your task inbox.` : '');
+
+  /* ---------- task inbox ---------- */
+  function renderInbox() {
+    const items = state.inbox, tk = dayKey(Date.now());
+    const open = items.filter((i) => !i.done).length, done = items.length - open;
+    $('inboxCount').textContent = items.length ? `${open} to do` : '';
+    if (!items.length) {
+      $('inboxList').innerHTML = '<li class="empty small">Nothing here yet. Add tasks you want to get to, then drop them into focus sessions.</li>';
+      return;
+    }
+    $('inboxList').innerHTML = items.map((i) => {
+      const since = i.k && i.k !== tk ? `<span class="ib-since">since ${sinceFmt.format(keyDate(i.k))}</span>` : '';
+      return `<li class="ib${i.done ? ' is-done' : ''}" data-id="${i.id}">
+        ${i.done ? '<span class="ib-grip off" aria-hidden="true"></span>' : `<span class="icon-btn ib-grip" aria-hidden="true" title="Drag onto a focus session">${ICON.grip}</span>`}
+        <label class="ib-main"><input type="checkbox" data-act="done" ${i.done ? 'checked' : ''} aria-label="Done"><span class="ib-text">${esc(i.t)}</span>${since}</label>
+        ${i.done ? '' : '<button type="button" class="btn small ib-use" data-act="use">Add to plan</button>'}
+        <button type="button" class="icon-btn" data-act="del" aria-label="Delete task">${ICON.del}</button>
+      </li>`;
+    }).join('') + (done ? `<li class="ib-foot"><button type="button" class="linkish" data-act="clear-done">Clear ${plural(done, 'finished task')}</button></li>` : '');
+  }
+  // The running focus session if it has no task yet, otherwise the next focus session without one.
+  function nextFreeFocus() {
+    const now = Date.now(), tl = currentTL(now);
+    const t = state.run ? state.run.pausedAt || now : now;
+    return tl.find((x) => x.b.kind === 'focus' && !(x.b.task || '').trim() && (!state.run || x.eff > t));
+  }
+  function assignTask(item, block) {
+    const before = snapshot();
+    let made = false;
+    if (!block) {
+      const x = nextFreeFocus();
+      if (x) block = x.b;
+      else { block = mk('focus'); state.blocks.push(block); made = true; }
+    }
+    const old = (block.task || '').trim();
+    if (old && !block.taskDone && old.toLowerCase() !== item.t.toLowerCase()) state.inbox.push({ id: uid(), t: old, done: false, k: dayKey(Date.now()) });
+    block.task = item.t; block.taskDone = false;
+    state.inbox = state.inbox.filter((i) => i !== item);
+    changed(true);
+    showToast(made ? `No free focus session, so a new one was added for “${item.t}”.` : `“${item.t}” is now the task for “${nameOf(block)}”.`,
+      { action: 'Undo', onAction: () => restore(before, 'Undone.') });
   }
 
   function updateList(tl, st, t) {
@@ -280,12 +376,23 @@
   }
 
   function loadTemplate(t, auto) {
-    const before = snapshot();
+    const before = snapshot(), old = state.blocks;
     state.blocks = t.blocks.map((b) => Object.assign({}, b, { id: uid(), taskDone: false }));
+    const n = rescueTasks(old, state.blocks);
     state.run = null; lastKey = null; lastBlockId = null; keepAwake(false);
     changed(true);
     const msg = auto ? `Loaded “${t.name}” for ${DAY_NAME[new Date().getDay()]}.` : `Loaded “${t.name}”.`;
-    showToast(msg, { action: 'Undo', onAction: () => restore(before, 'Previous plan restored.') });
+    showToast(msg + movedNote(n), { action: 'Undo', onAction: () => restore(before, 'Previous plan restored.') });
+  }
+  function loadSample(x) {
+    const before = snapshot(), old = state.blocks;
+    state.blocks = x.plan.map(([k, label, dur]) => mk(k, Object.assign({ dur }, label ? { label } : {})));
+    const n = rescueTasks(old, state.blocks);
+    state.run = null; lastKey = null; lastBlockId = null; keepAwake(false);
+    showView('today');
+    changed(true);
+    showToast(`Loaded “${x.name}”. Press Start when you’re ready.` + movedNote(n),
+      old.length ? { action: 'Undo', onAction: () => restore(before, 'Previous plan restored.') } : {});
   }
 
   function maybeAutoLoad(now) {
@@ -523,9 +630,9 @@
     // A session extended after it ended updates its log entry instead of adding one.
     let ref = run.logged[id];
     if (spent >= 30000) {
-      const entry = { n: (x.b.task || nameOf(x.b)).trim().slice(0, 80) || 'Focus', s: Math.round(spent / 1000), r: 0, d: (run.dis || {})[id] || 0 };
+      const entry = { n: (x.b.task || nameOf(x.b)).trim().slice(0, 80) || 'Focus', p: (x.b.proj || '').trim().slice(0, 40), s: Math.round(spent / 1000), r: 0, d: (run.dis || {})[id] || 0 };
       const old = ref && ((state.history[ref.k] || {}).log || [])[ref.i];
-      if (old) Object.assign(old, { n: entry.n, s: entry.s, d: entry.d });
+      if (old) Object.assign(old, { n: entry.n, p: entry.p, s: entry.s, d: entry.d });
       else {
         const day = today(now);
         day.log = day.log || [];
@@ -597,8 +704,12 @@
     $('statFocus').textContent = fmtSpan(td.f);
     $('statStreak').textContent = plural(sk, 'day');
     $('statDistract').textContent = td.d || 0;
+    const dn = $('dayNote');
+    if (document.activeElement !== dn && dn.value !== (td.note || '')) dn.value = td.note || '';
     renderGoal(now);
     renderHeatmap(now);
+    renderWeekSum(now);
+    renderProjects(now);
 
     const days = weekDays(now);
     const sig = JSON.stringify(days.map((x) => [dayKey(x.d.getTime()), Math.floor(x.f / MIN), x.s, x.log.map((e) => [e.n, Math.floor(e.s / 60), e.r])]));
@@ -635,13 +746,73 @@
     if (rows.length > 6) rows = rows.slice(0, 5).concat([{ n: 'Everything else', s: rows.slice(5).reduce((a, r) => a + r.s, 0), other: true }]);
     const top = rows.length ? rows[0].s : 1;
     $('taskBreak').innerHTML = rows.length
-      ? rows.map((r) => `<li${r.other ? ' class="other"' : ''}><span class="tb-name" title="${esc(r.n)}">${esc(r.n)}</span><span class="tb-track"><span class="tb-bar" style="width:${Math.max(2, (r.s / top) * 100)}%"></span></span><span class="tb-val">${fmtSpan(r.s * 1000)}</span></li>`).join('')
+      ? rows.map((r) => tbRow(r, top)).join('')
       : '<li class="empty small">Finish a focus session to see where your time goes.</li>';
+  }
+  const tbRow = (r, top) => `<li${r.other ? ' class="other"' : ''}><span class="tb-name" title="${esc(r.n)}">${esc(r.n)}</span><span class="tb-track"><span class="tb-bar" style="width:${Math.max(2, (r.s / top) * 100)}%"></span></span><span class="tb-val">${fmtSpan(r.s * 1000)}</span></li>`;
+
+  // Totals for n days starting on a given day.
+  function sumDays(from, n) {
+    let f = 0, s = 0;
+    const d = new Date(from);
+    for (let i = 0; i < n; i++) {
+      const h = state.history[dayKey(d.getTime())] || {};
+      f += h.f || 0; s += h.s || 0;
+      d.setDate(d.getDate() + 1);
+    }
+    return { f, s };
+  }
+  function renderWeekSum(now) {
+    const d = new Date(now); d.setHours(12, 0, 0, 0);
+    const n = ((d.getDay() + 6) % 7) + 1;
+    const mon = new Date(d); mon.setDate(d.getDate() - (n - 1));
+    const lastMon = new Date(mon); lastMon.setDate(mon.getDate() - 7);
+    const cur = sumDays(mon.getTime(), n), same = sumDays(lastMon.getTime(), n), last = sumDays(lastMon.getTime(), 7);
+    let best = null;
+    Object.entries(state.history).forEach(([k, h]) => { if ((h.f || 0) >= MIN && (!best || h.f > best.f)) best = { k, f: h.f }; });
+    const mins = (ms) => Math.floor(ms / MIN);
+    const sig = [dayKey(now), mins(cur.f), cur.s, mins(same.f), same.s, mins(last.f), last.s, best && best.k, best && mins(best.f)].join();
+    if (sig === weekSig) return;
+    weekSig = sig;
+    const diff = cur.f - same.f;
+    const cmp = cur.f < MIN && same.f < MIN ? 'No focus time recorded this week yet.'
+      : Math.abs(diff) < MIN ? 'The same as at this point last week.'
+      : diff > 0 ? `${fmtSpan(diff)} more than at this point last week.`
+      : `${fmtSpan(-diff)} less than at this point last week.`;
+    const stat = (k, v, sub) => `<div class="stat"><span class="k">${k}</span><span class="v">${v}</span><span class="s">${sub}</span></div>`;
+    $('weekSum').innerHTML = `<div class="stats">
+      ${stat('This week', fmtSpan(cur.f), plural(cur.s, 'session'))}
+      ${stat('Same days last week', fmtSpan(same.f), plural(same.s, 'session'))}
+      ${stat('All of last week', fmtSpan(last.f), plural(last.s, 'session'))}
+      ${stat('Best day so far', best ? fmtSpan(best.f) : '–', best ? fullDayFmt.format(keyDate(best.k)) : 'Not yet')}
+    </div><p class="wk-cmp">${cmp}</p>`;
+  }
+  function renderProjects(now) {
+    const tot = new Map();
+    let none = 0;
+    const d = new Date(now); d.setHours(12, 0, 0, 0);
+    for (let i = 0; i < projDays; i++) {
+      ((state.history[dayKey(d.getTime())] || {}).log || []).forEach((e) => {
+        const v = (e.p || '').trim();
+        if (!v) { none += e.s; return; }
+        const c = tot.get(v.toLowerCase()) || { n: v, s: 0 };
+        c.s += e.s; tot.set(v.toLowerCase(), c);
+      });
+      d.setDate(d.getDate() - 1);
+    }
+    const rows = [...tot.values()].sort((a, b) => b.s - a.s);
+    if (none && rows.length) rows.push({ n: 'No project', s: none, other: true });
+    const sig = projDays + JSON.stringify(rows.map((r) => [r.n, Math.floor(r.s / 60)]));
+    if (sig === projSig) return;
+    projSig = sig;
+    const top = Math.max(1, ...rows.map((r) => r.s));
+    $('projBreak').innerHTML = rows.length ? rows.map((r) => tbRow(r, top)).join('')
+      : `<li class="empty small">No project time in the last ${projDays} days. Give a focus session a project to see it here.</li>`;
   }
 
   /* ---------- monthly heatmap ---------- */
-  const HM_LEVELS = ['no focus', 'under 30 min', '30 min to 1 hour', '1 to 2 hours', '2 hours or more'];
-  const hmLevel = (f) => f < MIN ? 0 : f < 30 * MIN ? 1 : f < 60 * MIN ? 2 : f < 120 * MIN ? 3 : 4;
+  const HM_LEVELS = ['no focus', 'under 30 min', '30 min to 1 hour', '1 to 2 hours', '2 to 5 hours', '5 hours or more'];
+  const hmLevel = (f) => f < MIN ? 0 : f < 30 * MIN ? 1 : f < 60 * MIN ? 2 : f < 120 * MIN ? 3 : f < 300 * MIN ? 4 : 5;
   function hmMonth(now) {
     const d = new Date(now); d.setHours(12, 0, 0, 0); d.setDate(1); d.setMonth(d.getMonth() + hmOffset);
     return d;
@@ -658,7 +829,7 @@
       const h = state.history[k] || { s: 0, f: 0 };
       cells.push({ d, k, h, future: k > tk, today: k === tk });
     }
-    const sig = [y, m, tk, cells.map((c) => hmLevel(c.h.f) + ':' + Math.floor(c.h.f / MIN) + ':' + (c.h.s || 0)).join()].join('|');
+    const sig = [y, m, tk, cells.map((c) => hmLevel(c.h.f) + ':' + Math.floor(c.h.f / MIN) + ':' + (c.h.s || 0) + ':' + (c.h.note || '')).join()].join('|');
     if (sig === hmSig) return;
     hmSig = sig;
     $('hmTitle').textContent = monthFmt.format(first);
@@ -669,8 +840,9 @@
     const blanks = '<span class="hm-blank"></span>'.repeat(lead);
     $('heatmap').innerHTML = heads + blanks + cells.map((c) => {
       const lv = c.future ? 0 : hmLevel(c.h.f);
-      const label = c.future ? `${fullDayFmt.format(c.d)}: not yet` : hmDesc(c.d, c.h) + (lv ? ` (${HM_LEVELS[lv]})` : '');
-      return `<span class="hm-day l${lv}${c.today ? ' today' : ''}${c.future ? ' future' : ''}" tabindex="0" role="img" data-k="${c.k}" aria-label="${label}"><span class="hm-n">${c.d.getDate()}</span></span>`;
+      const note = !c.future && c.h.note ? c.h.note : '';
+      const label = c.future ? `${fullDayFmt.format(c.d)}: not yet` : hmDesc(c.d, c.h) + (lv ? ` (${HM_LEVELS[lv]})` : '') + (note ? `. Note: “${note}”` : '');
+      return `<span class="hm-day l${lv}${c.today ? ' today' : ''}${c.future ? ' future' : ''}${note ? ' has-note' : ''}" tabindex="0" role="img" data-k="${c.k}" aria-label="${esc(label)}"><span class="hm-n">${c.d.getDate()}</span></span>`;
     }).join('');
     const past = cells.filter((c) => !c.future);
     const total = past.reduce((a, c) => a + c.h.f, 0);
@@ -711,6 +883,7 @@
     $('themeLabel').textContent = dark ? 'Light' : 'Dark';
     $('btnTheme').setAttribute('aria-label', dark ? 'Switch to light theme' : 'Switch to dark theme');
     $('btnTheme').title = $('btnTheme').getAttribute('aria-label');
+    syncPipTheme();
   }
   function applyMode() {
     document.documentElement.classList.toggle('simple', state.mode === 'simple');
@@ -729,19 +902,20 @@
       if (days.length) on.push(`weekday plans (${days.map((t) => t.name).join(', ')})`);
       if (state.amb !== 'off') on.push(`background sound (${AMB_NAME[state.amb]})`);
       if (state.goal && state.goal.n > 0) on.push('daily goal');
+      if (state.overtime) on.push('keep counting past the end');
     }
     el.hidden = !on.length;
     if (on.length) el.innerHTML = `Still on from Full mode: ${esc(on.join(', '))}. <button type="button" class="linkish" data-mode-set="full">Switch to Full</button> to change them.`;
   }
 
   /* ---------- tab icon ---------- */
-  function updateIcon(active, color, frac, rem, paused) {
+  function updateIcon(active, color, frac, rem, paused, over) {
     if (!active) {
       if (iconSig !== 'orig') { iconLinks.forEach((l, i) => { l.href = iconOrig[i][0]; l.type = iconOrig[i][1]; }); iconSig = 'orig'; }
       return;
     }
     const m = Math.ceil(rem / MIN);
-    const label = m > 99 ? Math.round(m / 60) + 'h' : String(m);
+    const label = over ? '+' + Math.floor(over / MIN) : m > 99 ? Math.round(m / 60) + 'h' : String(m);
     const sig = [color, Math.round(frac * 48), label, paused].join();
     if (sig === iconSig) return;
     iconSig = sig;
@@ -804,7 +978,7 @@
 
   /* ---------- share and export ---------- */
   function encodePlan() {
-    const json = JSON.stringify({ v: 1, b: state.blocks.map((b) => [b.kind, b.label, b.color, b.at, b.dur || 0, b.task || '']) });
+    const json = JSON.stringify({ v: 1, b: state.blocks.map((b) => [b.kind, b.label, b.color, b.at, b.dur || 0, b.task || '', b.proj || '']) });
     return btoa(unescape(encodeURIComponent(json))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
   function readShared() {
@@ -823,6 +997,7 @@
           at: /^\d{2}:\d{2}$/.test(a[3]) ? a[3] : '',
           dur: Number.isInteger(a[4]) && a[4] > 0 && a[4] <= 600 ? a[4] : null,
           task: String(a[5] || '').slice(0, 200),
+          proj: String(a[6] || '').slice(0, 40),
         });
       }).filter(Boolean);
       return blocks.length ? blocks : null;
@@ -838,7 +1013,7 @@
     tl.filter((x) => x.eff > x.start).forEach((x) => {
       lines.push('BEGIN:VEVENT', `UID:${x.b.id}-${x.start}@focus-timer`, `DTSTAMP:${stamp}`,
         `DTSTART:${icsDate(x.start)}`, `DTEND:${icsDate(x.eff)}`, `SUMMARY:${icsEsc(nameOf(x.b))}`,
-        `CATEGORIES:${KINDS[x.b.kind].name}`);
+        `CATEGORIES:${KINDS[x.b.kind].name}${x.b.proj ? ',' + icsEsc(x.b.proj) : ''}`);
       if (x.b.task) lines.push(`DESCRIPTION:${icsEsc(x.b.task)}`);
       lines.push('END:VEVENT');
     });
@@ -862,14 +1037,17 @@
       color: /^#[0-9a-f]{6}$/i.test(b.color) ? b.color : KINDS[b.kind].color,
       at: /^\d{2}:\d{2}$/.test(b.at) ? b.at : '',
       dur: Number.isFinite(b.dur) && b.dur > 0 ? Math.min(600, Math.round(b.dur)) : null,
-      task: String(b.task || '').slice(0, 200), taskDone: !!b.taskDone,
+      task: String(b.task || '').slice(0, 200), taskDone: !!b.taskDone, proj: String(b.proj || '').slice(0, 40),
     }) : null;
     const out = Object.assign({}, DEFAULTS, {
       blocks: s.blocks.slice(0, 200).map(blk).filter(Boolean),
       templates: (Array.isArray(s.templates) ? s.templates : []).filter((t) => t && Array.isArray(t.blocks)).slice(0, 50).map((t) => ({
         id: uid(), name: String(t.name || 'Plan').slice(0, 40),
         days: (Array.isArray(t.days) ? t.days : []).filter((x) => Number.isInteger(x) && x >= 0 && x < 7),
-        blocks: t.blocks.map(blk).filter(Boolean).map(({ kind, label, color, at, dur, task }) => ({ kind, label, color, at, dur, task })),
+        blocks: t.blocks.map(blk).filter(Boolean).map(({ kind, label, color, at, dur, task, proj }) => ({ kind, label, color, at, dur, task, proj })),
+      })),
+      inbox: (Array.isArray(s.inbox) ? s.inbox : []).filter((i) => i && typeof i.t === 'string' && i.t.trim()).slice(0, 100).map((i) => ({
+        id: uid(), t: i.t.trim().slice(0, 200), done: !!i.done, k: /^\d{4}-\d{2}-\d{2}$/.test(i.k) ? i.k : '',
       })),
       cheers: Array.isArray(s.cheers) ? s.cheers.map((c) => String(c).slice(0, 120)).slice(0, 50) : [],
       history: {},
@@ -880,16 +1058,18 @@
         out.history[k] = {
           s: Math.max(0, +h.s || 0), f: Math.max(0, +h.f || 0), d: Math.max(0, +h.d || 0),
           log: (Array.isArray(h.log) ? h.log : []).filter((e) => e && typeof e === 'object').map((e) => ({
-            n: String(e.n || 'Focus').slice(0, 80), s: Math.max(0, +e.s || 0), r: [1, 2, 3, 4, 5].includes(e.r) ? e.r : 0, d: Math.max(0, +e.d || 0),
+            n: String(e.n || 'Focus').slice(0, 80), p: String(e.p || '').slice(0, 40), s: Math.max(0, +e.s || 0), r: [1, 2, 3, 4, 5].includes(e.r) ? e.r : 0, d: Math.max(0, +e.d || 0),
           })),
         };
+        if (typeof h.note === 'string' && h.note.trim()) out.history[k].note = h.note.slice(0, 280);
       });
     }
-    ['h24', 'sound', 'volume', 'warnMin', 'autoStart', 'cheerMode', 'amb', 'ambVol', 'askRate', 'goalHit', 'autoLoaded', 'theme', 'mode'].forEach((k) => {
+    ['h24', 'sound', 'volume', 'warnMin', 'autoStart', 'cheerMode', 'amb', 'ambVol', 'askRate', 'goalHit', 'autoLoaded', 'theme', 'mode', 'breakIdeas', 'pauseRemind', 'overtime'].forEach((k) => {
       if (typeof s[k] === typeof DEFAULTS[k]) out[k] = s[k];
     });
     if (!['system', 'light', 'dark'].includes(out.theme)) out.theme = 'system';
     if (!['simple', 'full'].includes(out.mode)) out.mode = 'full';
+    if (![0, 5, 10, 15, 30].includes(out.pauseRemind)) out.pauseRemind = 10;
     if (s.goal && ['sessions', 'minutes'].includes(s.goal.type) && +s.goal.n >= 0) out.goal = { type: s.goal.type, n: Math.min(600, Math.round(+s.goal.n)) };
     return out;
   }
@@ -903,12 +1083,58 @@
   }
 
   /* ---------- print ---------- */
+  // A one-page report of this week and last week, printed or saved as a PDF.
+  function buildReport() {
+    const now = Date.now(), d = new Date(now); d.setHours(12, 0, 0, 0);
+    const n = ((d.getDay() + 6) % 7) + 1;
+    const mon = new Date(d); mon.setDate(d.getDate() - (n - 1));
+    const lastMon = new Date(mon); lastMon.setDate(mon.getDate() - 7);
+    const cur = sumDays(mon.getTime(), n), same = sumDays(lastMon.getTime(), n), last = sumDays(lastMon.getTime(), 7);
+    const diff = cur.f - same.f;
+    const cmp = cur.f < MIN && same.f < MIN ? 'No focus time recorded this week yet.'
+      : Math.abs(diff) < MIN ? 'The same as at this point last week.'
+      : diff > 0 ? `${fmtSpan(diff)} more than at this point last week.` : `${fmtSpan(-diff)} less than at this point last week.`;
+    // Daily rows from last Monday to today, newest first.
+    const rows = [], tot = new Map(), proj = new Map();
+    const day = new Date(d);
+    for (let i = 0; i < n + 7; i++) {
+      const h = state.history[dayKey(day.getTime())] || {}, log = h.log || [], rated = log.filter((e) => e.r > 0);
+      rows.push(`<tr><td>${fullDayFmt.format(day)}</td><td class="p-t">${h.f >= MIN ? fmtSpan(h.f) : '–'}</td><td class="p-t">${h.s || 0}</td><td class="p-t">${h.d || 0}</td><td class="p-t">${rated.length ? (rated.reduce((a, e) => a + e.r, 0) / rated.length).toFixed(1) : '–'}</td><td>${esc(h.note || '')}</td></tr>`);
+      if (i < n) log.forEach((e) => {
+        const a = tot.get(e.n.toLowerCase()) || { n: e.n, s: 0 }; a.s += e.s; tot.set(e.n.toLowerCase(), a);
+        const pn = (e.p || '').trim() || 'No project';
+        const b = proj.get(pn.toLowerCase()) || { n: pn, s: 0 }; b.s += e.s; proj.set(pn.toLowerCase(), b);
+      });
+      if (i === n - 1) rows.push('<tr class="p-sep"><td colspan="6">Last week</td></tr>');
+      day.setDate(day.getDate() - 1);
+    }
+    const list = (m) => [...m.values()].sort((a, b) => b.s - a.s).slice(0, 8)
+      .map((r) => `<tr><td>${esc(r.n)}</td><td class="p-t">${fmtSpan(r.s * 1000)}</td></tr>`).join('') || '<tr><td colspan="2">Nothing yet this week.</td></tr>';
+    const stat = (k, v, sub) => `<div><span>${k}</span><b>${v}</b><small>${sub}</small></div>`;
+    $('printView').innerHTML = `<h1>Focus report</h1>
+      <p class="p-sub">Week of ${fullDayFmt.format(mon)} · made ${dateFmt.format(new Date(now))}</p>
+      <div class="p-stats">
+        ${stat('This week', fmtSpan(cur.f), plural(cur.s, 'session'))}
+        ${stat('Same days last week', fmtSpan(same.f), plural(same.s, 'session'))}
+        ${stat('All of last week', fmtSpan(last.f), plural(last.s, 'session'))}
+        ${stat('Day streak', plural(streak(now), 'day'), '')}
+      </div>
+      <p class="p-cmp">${cmp}</p>
+      <h2>Day by day</h2>
+      <table><thead><tr><th>Day</th><th>Focus</th><th>Sessions</th><th>Distractions</th><th>Rating</th><th>Note</th></tr></thead><tbody>
+        <tr class="p-sep"><td colspan="6">This week</td></tr>${rows.join('')}</tbody></table>
+      <div class="p-two">
+        <div><h2>This week by task</h2><table><tbody>${list(tot)}</tbody></table></div>
+        <div><h2>This week by project</h2><table><tbody>${list(proj)}</tbody></table></div>
+      </div>`;
+  }
+
   function buildPrint() {
     const now = Date.now(), tl = currentTL(now);
     const rows = tl.map((x, i) => `<tr style="--c:${x.b.color}">
       <td class="p-n">${i + 1}</td>
       <td class="p-t">${fmtClock(x.start)} – ${fmtClock(x.eff)}</td>
-      <td><b>${esc(nameOf(x.b))}</b>${x.b.task ? `<div class="p-task">${x.b.taskDone ? '☑' : '☐'} ${esc(x.b.task)}</div>` : ''}</td>
+      <td><b>${esc(nameOf(x.b))}</b>${x.b.proj ? ` <span class="p-proj">· ${esc(x.b.proj)}</span>` : ''}${x.b.task ? `<div class="p-task">${x.b.taskDone ? '☑' : '☐'} ${esc(x.b.task)}</div>` : ''}</td>
       <td>${KINDS[x.b.kind].name}</td>
       <td class="p-t">${fmtSpan(x.eff - x.start)}</td>
     </tr>`).join('');
@@ -956,7 +1182,7 @@
 
   function renderDial(st, tl, t, now) {
     const run = state.run;
-    let color = KINDS.focus.color, chip = 'Ready', label = 'Add a session to begin', cd = '00:00', sub = '', frac = 1, dashed = false, next = null, rem = 0, taskBlock = null;
+    let color = KINDS.focus.color, chip = 'Ready', label = 'Add a session to begin', cd = '00:00', sub = '', frac = 1, dashed = false, next = null, rem = 0, taskBlock = null, overMs = 0;
     if (st.mode === 'empty') {
       sub = 'Your plan is empty';
     } else if (st.mode === 'idle') {
@@ -974,6 +1200,12 @@
       frac = rem / Math.max(1, x.eff - x.start);
       next = tl.slice(st.i + 1).find((n) => n.eff > n.start);
       if (x.b.kind === 'focus') taskBlock = x.b;
+      const planned = run && run.over && run.over[x.b.id] > 0 ? run.over[x.b.id] : 0;
+      if (planned && t >= planned) {
+        overMs = t - planned;
+        chip = 'Running over'; cd = '+' + fmtDur(overMs); frac = 1;
+        sub = `Planned to end at ${fmtClock(planned)}`;
+      }
     } else if (st.mode === 'wait' || st.mode === 'gap') {
       const n = tl[st.j];
       color = n.b.color; chip = st.mode === 'wait' ? 'Waiting to start' : 'Free time';
@@ -996,10 +1228,11 @@
     const prog = $('prog');
     prog.classList.toggle('dashed', dashed);
     prog.style.strokeDashoffset = C * (1 - Math.max(0, Math.min(1, frac)));
-    $('dial').classList.toggle('ending', !!run && !paused && st.mode === 'block' && state.warnMin > 0 && rem <= state.warnMin * MIN);
+    $('dial').classList.toggle('ending', !!run && !paused && !overMs && st.mode === 'block' && state.warnMin > 0 && rem <= state.warnMin * MIN);
+    $('dial').classList.toggle('over', overMs > 0);
 
     const inFocus = st.mode === 'block' && tl[st.i].b.kind === 'focus';
-    $('btnPlus').hidden = !(run && st.mode === 'block');
+    $('btnPlus').hidden = !(run && st.mode === 'block') || overMs > 0;
     const dis = $('btnDistract');
     dis.hidden = !(run && !paused && inFocus);
     if (!dis.hidden) {
@@ -1018,6 +1251,16 @@
       tn.classList.toggle('is-done', !!taskBlock.taskDone);
     } else tn.hidden = true;
 
+    const bi = $('breakIdea');
+    const onBreak = state.breakIdeas && st.mode === 'block' && tl[st.i].b.kind !== 'focus';
+    if (onBreak) {
+      const x = tl[st.i], list = BREAK_IDEAS[x.b.kind === 'long' ? 'long' : 'short'];
+      let h = 0;
+      for (const ch of x.b.id + Math.floor(x.start / MIN)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+      bi.innerHTML = `<span class="k">Break idea</span> ${esc(list[h % list.length])}`;
+    }
+    bi.hidden = !onBreak;
+
     const up = $('upNext');
     if (next && st.mode !== 'wait' && st.mode !== 'gap') {
       up.hidden = false;
@@ -1028,12 +1271,14 @@
     bs.textContent = !run ? 'Start' : paused ? 'Resume' : 'Pause';
     bs.disabled = !state.blocks.length;
     $('btnSkip').disabled = !run || st.mode === 'done';
-    $('btnSkip').textContent = run && (st.mode === 'wait' || st.mode === 'gap') ? 'Start now' : 'Skip';
+    $('btnSkip').textContent = run && (st.mode === 'wait' || st.mode === 'gap') ? 'Start now' : overMs ? 'Finish' : 'Skip';
     $('btnStop').disabled = !run;
     $('tgl24').setAttribute('aria-pressed', String(state.h24));
     $('tgl24').textContent = state.h24 ? '24-hour clock' : '12-hour clock';
     document.title = run && st.mode !== 'done' ? `${cd} · ${label}` : PAGE_TITLE;
-    updateIcon(!!run && (st.mode === 'block' || st.mode === 'wait' || st.mode === 'gap'), color, dashed ? 0 : frac, rem, paused);
+    updateIcon(!!run && (st.mode === 'block' || st.mode === 'wait' || st.mode === 'gap'), color, dashed ? 0 : frac, rem, paused, overMs);
+    renderPip({ chip: chipEl.textContent, label, cd, frac, color, dashed, over: overMs > 0,
+      start: bs.textContent, startOff: bs.disabled, skip: $('btnSkip').textContent, skipOff: $('btnSkip').disabled });
     cheerMood(st.mode === 'block' ? tl[st.i].b.kind : st.mode);
   }
 
@@ -1050,6 +1295,9 @@
       playSound('done', 'All done. Well done!');
       confetti(); notify('Plan complete', 'Every session and break is finished.');
       keepAwake(false);
+      if (state.mode === 'full') setTimeout(() => {
+        if ($('toast').hidden) showToast('Plan complete. Want to write a note about today?', { action: 'Add note', ms: 15000, onAction: () => { showView('progress', true); $('dayNote').focus(); } });
+      }, 2500);
     } else {
       playSound('break', 'Free time');
     }
@@ -1075,6 +1323,118 @@
     })();
   }
 
+  /* ---------- keep going past the end ---------- */
+  // Once a focus session's planned time is up, extend it a minute at a time
+  // until the person presses Finish, or a pinned block needs to start.
+  function keepGoing(run, now) {
+    const id = lastBlockId;
+    const find = () => currentTL(now).find((y) => y.b.id === id);
+    const x = find();
+    if (!x || x.b.kind !== 'focus' || (run.cut || {})[id] != null || (run.overCap || {})[id]) return;
+    run.over = run.over || {};
+    const started = run.over[id] > 0;
+    if (x.eff - now > (started ? 30000 : 1500)) return;
+    const add = Math.max(0, now - x.eff) + MIN;
+    run.ext[id] = (run.ext[id] || 0) + add;
+    if (find().eff <= x.eff) {
+      run.ext[id] -= add;
+      run.overCap = run.overCap || {}; run.overCap[id] = 1;
+      return;
+    }
+    if (!started) {
+      run.over[id] = x.eff;
+      playSound('warn', 'Planned time is up. Keep going, or finish when you are ready.');
+      notify('Planned time is up', `${nameOf(x.b)} keeps counting until you press Finish.`);
+      showToast('Planned time is up. Keep going, or finish when you’re ready.', { action: 'Finish', ms: 12000, onAction: skip });
+    }
+    save();
+  }
+
+  /* ---------- mini timer ---------- */
+  // A small always-on-top window (Document Picture-in-Picture, Chrome and Edge).
+  async function togglePip() {
+    if (pip) { pip.close(); return; }
+    if (!('documentPictureInPicture' in window)) return;
+    let w;
+    try { w = await window.documentPictureInPicture.requestWindow({ width: 260, height: 300 }); }
+    catch (e) { showToast('The mini timer couldn’t open.'); return; }
+    pip = w;
+    const d = w.document;
+    d.title = 'Focus Timer';
+    document.querySelectorAll('link[rel="stylesheet"]').forEach((l) => {
+      const n = d.createElement('link'); n.rel = 'stylesheet'; n.href = l.href; d.head.appendChild(n);
+    });
+    d.body.className = 'pip-body';
+    d.body.innerHTML = `<div class="pip">
+      <span class="chip" id="pChip"></span>
+      <div class="pip-dial">
+        <svg viewBox="0 0 120 120" aria-hidden="true"><circle class="track" cx="60" cy="60" r="52" fill="none" stroke-width="9"></circle><circle class="prog" id="pProg" cx="60" cy="60" r="52" fill="none" stroke-width="9" stroke-linecap="round" transform="rotate(-90 60 60)" style="stroke-dasharray:${PC}"></circle></svg>
+        <div class="pip-cd" id="pCd" role="timer">00:00</div>
+      </div>
+      <div class="pip-label" id="pLabel"></div>
+      <div class="pip-btns"><button class="btn primary small" type="button" id="pStart">Start</button><button class="btn small" type="button" id="pSkip">Skip</button></div>
+    </div>`;
+    d.getElementById('pStart').addEventListener('click', startOrPause);
+    d.getElementById('pSkip').addEventListener('click', skip);
+    d.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' && !e.repeat && !e.target.closest('button')) { e.preventDefault(); startOrPause(); }
+    });
+    w.addEventListener('pagehide', () => { pip = null; pipSig = ''; $('btnPip').setAttribute('aria-pressed', 'false'); $('btnPip').textContent = 'Mini timer'; });
+    $('btnPip').setAttribute('aria-pressed', 'true');
+    $('btnPip').textContent = 'Close mini timer';
+    pipSig = '';
+    syncPipTheme();
+    tick();
+  }
+  function syncPipTheme() {
+    if (!pip) return;
+    const th = document.documentElement.getAttribute('data-theme'), dst = pip.document.documentElement;
+    if (th) dst.setAttribute('data-theme', th); else dst.removeAttribute('data-theme');
+  }
+  function renderPip(v) {
+    if (!pip) return;
+    const sig = [v.chip, v.label, v.cd, Math.round(v.frac * 400), v.color, v.dashed, v.over, v.start, v.startOff, v.skip, v.skipOff].join('|');
+    if (sig === pipSig) return;
+    pipSig = sig;
+    const d = pip.document, g = (id) => d.getElementById(id);
+    if (!g('pCd')) return;
+    d.documentElement.style.setProperty('--cur', v.color);
+    g('pChip').textContent = v.chip;
+    g('pCd').textContent = v.cd;
+    g('pLabel').textContent = v.label;
+    const pr = g('pProg');
+    pr.style.strokeDashoffset = PC * (1 - Math.max(0, Math.min(1, v.frac)));
+    pr.classList.toggle('dashed', v.dashed);
+    g('pStart').textContent = v.start; g('pStart').disabled = v.startOff;
+    g('pSkip').textContent = v.skip; g('pSkip').disabled = v.skipOff;
+    d.title = v.cd !== '00:00' ? `${v.cd} · ${v.label}` : 'Focus Timer';
+  }
+
+  /* ---------- spreadsheet export ---------- */
+  function csvCell(v) {
+    let x = v == null ? '' : String(v);
+    // Stop spreadsheet apps from treating text as a formula.
+    if (/^[=+\-@\t\r]/.test(x)) x = "'" + x;
+    return /[",\r\n]/.test(x) ? '"' + x.replace(/"/g, '""') + '"' : x;
+  }
+  const toCSV = (rows) => '\ufeff' + rows.map((r) => r.map(csvCell).join(',')).join('\r\n') + '\r\n';
+  function csvDays() {
+    const rows = [['Date', 'Focus minutes', 'Sessions', 'Distractions', 'Average focus rating', 'Note']];
+    Object.keys(state.history).sort().forEach((k) => {
+      const h = state.history[k], log = h.log || [], rated = log.filter((e) => e.r > 0);
+      if (!(h.f >= MIN || h.s || h.note || log.length)) return;
+      rows.push([k, Math.round(h.f / MIN), h.s || 0, h.d || 0, rated.length ? (rated.reduce((a, e) => a + e.r, 0) / rated.length).toFixed(1) : '', h.note || '']);
+    });
+    return rows;
+  }
+  function csvSessions() {
+    const rows = [['Date', 'Task', 'Project', 'Minutes', 'Focus rating', 'Distractions']];
+    Object.keys(state.history).sort().forEach((k) => (state.history[k].log || []).forEach((e) => {
+      rows.push([k, e.n, e.p || '', Math.round(e.s / 6) / 10, e.r || '', e.d || 0]);
+    }));
+    return rows;
+  }
+
   /* ---------- main loop ---------- */
   function tick() {
     const now = Date.now();
@@ -1089,6 +1449,14 @@
 
     if (state.run && !state.blocks.length) state.run = null;
     const run = state.run;
+    if (run && !run.pausedAt && state.overtime && lastBlockId) keepGoing(run, now);
+    if (run && run.pausedAt && state.pauseRemind > 0 && pauseWarned !== run.pausedAt && now - run.pausedAt >= state.pauseRemind * MIN) {
+      pauseWarned = run.pausedAt;
+      const len = plural(state.pauseRemind, 'minute');
+      playSound('warn', 'Still paused. Ready to carry on?');
+      notify('Still paused', `The timer has been paused for ${len}.`);
+      showToast(`Paused for ${len}. Ready to carry on?`, { action: 'Resume', ms: 20000, onAction: startOrPause });
+    }
     const tl = currentTL(now);
     const t = run && run.pausedAt ? run.pausedAt : now;
     const st = !tl.length ? { mode: 'empty' } : run ? status(t, tl) : { mode: 'idle' };
@@ -1106,7 +1474,7 @@
         }
         // Warning before the block ends
         const rem = x.eff - t, w = state.warnMin * MIN, wk = x.b.id + ':' + x.eff;
-        if (w > 0 && rem > 0 && rem <= w && x.eff - x.start > w + 30000 && warnedKey !== wk) {
+        if (w > 0 && rem > 0 && rem <= w && x.eff - x.start > w + 30000 && warnedKey !== wk && !(run.over && run.over[x.b.id])) {
           warnedKey = wk;
           playSound('warn', `${plural(state.warnMin, 'minute')} left`);
           notify(`${plural(state.warnMin, 'minute')} left`, nameOf(x.b));
@@ -1133,7 +1501,7 @@
   }
 
   function changed(structural) {
-    if (structural) renderList();
+    if (structural) { renderList(); renderInbox(); }
     save();
     tick();
   }
@@ -1168,8 +1536,9 @@
     if (act === 'del') {
       const before = snapshot();
       B.splice(i, 1);
+      const n = rescueTasks([b], B);
       changed(true);
-      showToast(`Deleted “${nameOf(b)}”.`, { action: 'Undo', onAction: () => restore(before) });
+      showToast(`Deleted “${nameOf(b)}”.` + movedNote(n), { action: 'Undo', onAction: () => restore(before) });
       return;
     }
     changed(true);
@@ -1182,6 +1551,7 @@
     else if (cl.contains('dur-in')) { const v = parseInt(e.target.value, 10); b.dur = v > 0 ? Math.min(v, 600) : null; }
     else if (cl.contains('at-in')) { if (e.target.value) b.at = e.target.value; }
     else if (cl.contains('task-in')) b.task = e.target.value;
+    else if (cl.contains('proj-in')) b.proj = e.target.value.slice(0, 40);
     else return;
     changed(false);
   });
@@ -1198,6 +1568,8 @@
       changed(true);
     } else if (cl.contains('at-in') && !e.target.value) {
       b.at = ''; changed(true);
+    } else if (cl.contains('proj-in')) {
+      b.proj = e.target.value.trim().slice(0, 40); renderProjList(); save();
     } else if (cl.contains('task-done')) {
       b.taskDone = e.target.checked;
       const ti = $('task-' + b.id); if (ti) ti.classList.toggle('is-done', b.taskDone);
@@ -1288,11 +1660,12 @@
       if (pin || (i === 0 && startAt)) b.at = hhmm(t);
       t += b.dur * MIN;
     });
-    const before = snapshot(), hadBlocks = state.blocks.length > 0;
+    const before = snapshot(), hadBlocks = state.blocks.length > 0, old = state.blocks;
     state.blocks = qbMode === 'append' ? state.blocks.concat(out) : out;
+    const moved = qbMode === 'replace' ? rescueTasks(old, out) : 0;
     if (qbMode === 'replace') { state.run = null; lastKey = null; lastBlockId = null; }
     changed(true);
-    if (hadBlocks) showToast(qbMode === 'append' ? `Added ${plural(out.length, 'block')}.` : 'Plan replaced.', { action: 'Undo', onAction: () => restore(before) });
+    if (hadBlocks) showToast((qbMode === 'append' ? `Added ${plural(out.length, 'block')}.` : 'Plan replaced.') + movedNote(moved), { action: 'Undo', onAction: () => restore(before) });
   });
 
   // Clear all, with confirmation and undo
@@ -1307,9 +1680,10 @@
   $('clearYes').addEventListener('click', () => {
     $('clearConfirm').hidden = true;
     const n = state.blocks.length, before = snapshot();
+    const moved = rescueTasks(state.blocks, []);
     state.blocks = []; state.run = null; lastKey = null; lastBlockId = null; keepAwake(false);
     changed(true);
-    showToast(`Plan cleared. ${plural(n, 'block')} removed.`, { action: 'Undo', onAction: () => restore(before, 'Plan restored.') });
+    showToast(`Plan cleared. ${plural(n, 'block')} removed.` + movedNote(moved), { action: 'Undo', onAction: () => restore(before, 'Plan restored.') });
   });
 
   // Repeat a run of blocks
@@ -1338,7 +1712,7 @@
     const name = $('tplName').value.trim();
     if (!name) { $('tplName').focus(); showToast('Type a name for this plan first.'); return; }
     if (!state.blocks.length) { showToast('Add at least one block before saving.'); return; }
-    const blocks = state.blocks.map(({ kind, label, color, at, dur, task }) => ({ kind, label, color, at, dur, task: task || '' }));
+    const blocks = state.blocks.map(({ kind, label, color, at, dur, task, proj }) => ({ kind, label, color, at, dur, task: task || '', proj: proj || '' }));
     const existing = state.templates.find((t) => t.name.toLowerCase() === name.toLowerCase());
     if (existing) { existing.blocks = blocks; existing.name = name; }
     else state.templates.push({ id: uid(), name, blocks, days: [] });
@@ -1387,15 +1761,25 @@
   $('shareLoad').addEventListener('click', () => {
     if (!sharedBlocks) return;
     const before = snapshot();
+    const moved = rescueTasks(state.blocks, sharedBlocks);
     state.blocks = sharedBlocks; state.run = null; lastKey = null; lastBlockId = null; keepAwake(false);
     sharedBlocks = null; $('shareBanner').hidden = true; clearHash();
     showView('today');
     changed(true);
-    showToast('Shared plan loaded.', { action: 'Undo', onAction: () => restore(before, 'Your previous plan is back.') });
+    showToast('Shared plan loaded.' + movedNote(moved), { action: 'Undo', onAction: () => restore(before, 'Your previous plan is back.') });
   });
   $('shareIgnore').addEventListener('click', () => { sharedBlocks = null; $('shareBanner').hidden = true; clearHash(); });
+  // Ctrl+P prints the plan, unless the report button started the print.
+  let printingReport = false;
   $('btnPrint').addEventListener('click', () => { buildPrint(); window.print(); });
-  window.addEventListener('beforeprint', buildPrint);
+  $('btnReport').addEventListener('click', () => {
+    printingReport = true;
+    buildReport();
+    showToast('In the print window, choose Save as PDF to download the report.');
+    window.print();
+  });
+  window.addEventListener('beforeprint', () => { if (printingReport) buildReport(); else buildPrint(); });
+  window.addEventListener('afterprint', () => { printingReport = false; });
 
   // Backup and restore
   $('btnBackup').addEventListener('click', () => {
@@ -1451,6 +1835,104 @@
   });
   $('setRate').addEventListener('change', (e) => { state.askRate = e.target.checked; if (!state.askRate) ratePending = null; save(); tick(); });
   $('cheerMode').addEventListener('change', (e) => { state.cheerMode = e.target.value; save(); showCheer(); });
+  $('setIdeas').addEventListener('change', (e) => { state.breakIdeas = e.target.checked; save(); tick(); });
+  $('setPauseRemind').addEventListener('change', (e) => { state.pauseRemind = +e.target.value; save(); });
+  $('setOvertime').addEventListener('change', (e) => { state.overtime = e.target.checked; save(); tick(); });
+
+  // Task inbox
+  $('inboxForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const t = $('inboxIn').value.trim();
+    if (!t) { $('inboxIn').focus(); return; }
+    if (state.inbox.length >= 100) { showToast('The inbox holds up to 100 tasks. Clear some finished ones first.'); return; }
+    state.inbox.push({ id: uid(), t: t.slice(0, 200), done: false, k: dayKey(Date.now()) });
+    $('inboxIn').value = '';
+    renderInbox(); save();
+  });
+  const ibItem = (el) => { const li = el.closest('.ib'); return li ? state.inbox.find((i) => i.id === li.dataset.id) : null; };
+  $('inboxList').addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-act]'); if (!btn) return;
+    const act = btn.dataset.act;
+    if (act === 'clear-done') {
+      const before = snapshot(), n = state.inbox.filter((i) => i.done).length;
+      state.inbox = state.inbox.filter((i) => !i.done);
+      renderInbox(); save();
+      showToast(`Cleared ${plural(n, 'finished task')}.`, { action: 'Undo', onAction: () => restore(before, 'Tasks restored.') });
+      return;
+    }
+    const it = ibItem(btn); if (!it) return;
+    if (act === 'use') assignTask(it);
+    else if (act === 'del') {
+      const before = snapshot();
+      state.inbox = state.inbox.filter((i) => i !== it);
+      renderInbox(); save();
+      showToast(`Deleted “${it.t}”.`, { action: 'Undo', onAction: () => restore(before, 'Task restored.') });
+    }
+  });
+  $('inboxList').addEventListener('change', (e) => {
+    if (e.target.dataset.act !== 'done') return;
+    const it = ibItem(e.target); if (!it) return;
+    it.done = e.target.checked;
+    renderInbox(); save();
+  });
+  // Drag a task onto a focus session. Pointer events work for mouse, touch and pen.
+  $('inboxList').addEventListener('pointerdown', (e) => {
+    const g = e.target.closest('.ib-grip:not(.off)');
+    if (!g || e.button > 0) return;
+    const it = ibItem(g); if (!it) return;
+    e.preventDefault();
+    const ghost = document.createElement('div');
+    ghost.className = 'ib-ghost'; ghost.textContent = it.t;
+    document.body.appendChild(ghost);
+    idrag = { it, ghost, pid: e.pointerId, over: null };
+    try { g.setPointerCapture(e.pointerId); } catch (err) {}
+    moveIdrag(e);
+  });
+  function moveIdrag(e) {
+    if (!idrag || e.pointerId !== idrag.pid) return;
+    idrag.ghost.style.transform = `translate(${e.clientX + 14}px, ${e.clientY + 10}px)`;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const row = el ? el.closest('.block[data-kind="focus"]') : null;
+    if (row !== idrag.over) {
+      if (idrag.over) idrag.over.classList.remove('drop');
+      if (row) row.classList.add('drop');
+      idrag.over = row;
+    }
+    if (e.clientY < 60) window.scrollBy(0, -14);
+    else if (e.clientY > innerHeight - 100) window.scrollBy(0, 14);
+  }
+  function endIdrag(e, cancel) {
+    if (!idrag || e.pointerId !== idrag.pid) return;
+    const d = idrag; idrag = null;
+    d.ghost.remove();
+    if (d.over) d.over.classList.remove('drop');
+    if (cancel) return;
+    const b = d.over && state.blocks.find((x) => x.id === d.over.dataset.id);
+    if (b) assignTask(d.it, b);
+    else showToast('Drop the task on a focus session in your plan, or press Add to plan.');
+  }
+  $('inboxList').addEventListener('pointermove', moveIdrag);
+  $('inboxList').addEventListener('pointerup', (e) => endIdrag(e, false));
+  $('inboxList').addEventListener('pointercancel', (e) => endIdrag(e, true));
+
+  // Progress: note, projects and spreadsheet downloads
+  $('dayNote').addEventListener('input', (e) => {
+    const day = today(Date.now()), v = e.target.value.slice(0, 280);
+    if (v.trim()) day.note = v; else delete day.note;
+    save(); renderHeatmap(Date.now());
+  });
+  $('projSeg').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-proj-days]'); if (!b) return;
+    projDays = +b.dataset.projDays;
+    $('projSeg').querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    renderProjects(Date.now());
+  });
+  [['btnCsvDays', csvDays, 'daily-totals'], ['btnCsvSessions', csvSessions, 'sessions']].forEach(([id, fn, name]) => $(id).addEventListener('click', () => {
+    const rows = fn();
+    if (rows.length < 2) { showToast('Nothing to download yet. Finish a focus session first.'); return; }
+    download(`focus-timer-${name}-${dayKey(Date.now())}.csv`, toCSV(rows), 'text/csv;charset=utf-8');
+    showToast(`Downloaded ${plural(rows.length - 1, 'row')}.`);
+  }));
   $('cheerList').addEventListener('input', (e) => {
     state.cheers = e.target.value.split('\n').map((s) => s.trim().slice(0, 120)).filter(Boolean).slice(0, 50);
     save();
@@ -1462,10 +1944,17 @@
   $('btnStop').addEventListener('click', reset);
   $('tgl24').addEventListener('click', () => { state.h24 = !state.h24; tlSig = ''; renderTemplates(); changed(false); });
   $('btnFocus').addEventListener('click', () => setFocusMode(!document.body.classList.contains('focus-mode')));
+  $('btnPip').addEventListener('click', togglePip);
+  const openKeys = () => { if (!$('keysDlg').open) $('keysDlg').showModal(); };
+  $('btnKeys').addEventListener('click', openKeys);
+  $('keysClose').addEventListener('click', () => $('keysDlg').close());
+  $('keysDlg').addEventListener('click', (e) => { if (e.target === $('keysDlg')) $('keysDlg').close(); });
   // Tabs, mode, theme and heatmap
   window.addEventListener('hashchange', route);
   window.addEventListener('popstate', route);
   document.addEventListener('click', (e) => {
+    const sm = e.target.closest('[data-sample]');
+    if (sm) { loadSample(SAMPLES[+sm.dataset.sample]); return; }
     const m = e.target.closest('[data-mode-set]');
     if (m) {
       state.mode = m.dataset.modeSet; applyMode(); save();
@@ -1521,13 +2010,27 @@
   $('toastClose').addEventListener('click', hideToast);
 
   document.addEventListener('keydown', (e) => {
-    if (e.target.closest('input, select, textarea, button, summary')) {
-      if (e.key === 'Escape' && document.body.classList.contains('focus-mode')) setFocusMode(false);
+    const fm = document.body.classList.contains('focus-mode');
+    if (e.target.closest('input, select, textarea')) {
+      if (e.key === 'Escape' && fm) setFocusMode(false);
       return;
     }
-    if (e.code === 'Space' && !e.repeat) { e.preventDefault(); startOrPause(); }
-    else if ((e.key === 'f' || e.key === 'F') && !e.metaKey && !e.ctrlKey && !e.altKey) setFocusMode(!document.body.classList.contains('focus-mode'));
-    else if (e.key === 'Escape' && document.body.classList.contains('focus-mode')) setFocusMode(false);
+    if (e.metaKey || e.ctrlKey || e.altKey || $('keysDlg').open) return;
+    const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    // Space on a focused button presses that button instead.
+    if (e.code === 'Space') { if (!e.repeat && !e.target.closest('button, summary, a')) { e.preventDefault(); startOrPause(); } return; }
+    if (e.repeat) return;
+    if (k === 'f') setFocusMode(!fm);
+    else if (k === 'Escape' && fm) setFocusMode(false);
+    else if (k === 's') { if (state.run) skip(); }
+    else if (k === '+' || k === '=') { if (!$('btnPlus').hidden) $('btnPlus').click(); }
+    else if (k === 'm') { if (!$('btnPip').hidden) togglePip(); }
+    else if (k === 'd') { if (state.mode === 'full' && !$('btnDistract').hidden) $('btnDistract').click(); }
+    else if (k === '?') { e.preventDefault(); openKeys(); }
+    else if (/^[1-4]$/.test(k)) {
+      const a = [...document.querySelectorAll('a.tab')].filter((x) => x.getClientRects().length)[+k - 1];
+      if (a) { showView(a.dataset.view, true); window.scrollTo(0, 0); }
+    }
   });
   document.addEventListener('fullscreenchange', () => {
     if (!document.fullscreenElement && document.body.classList.contains('focus-mode')) setFocusMode(false);
@@ -1594,11 +2097,17 @@
     $('setRate').checked = !!state.askRate;
     $('cheerMode').value = state.cheerMode;
     $('cheerList').value = (state.cheers || []).join('\n');
+    $('setIdeas').checked = !!state.breakIdeas;
+    $('setPauseRemind').value = String(state.pauseRemind);
+    $('setOvertime').checked = !!state.overtime;
     applyTheme();
     applyMode();
   }
   syncSettings();
   route();
+  $('btnPip').hidden = $('keyPip').hidden = !('documentPictureInPicture' in window);
+  $('qbSamples').innerHTML = `<span class="lbl">Or start from a ready-made plan:</span>${sampleBtns()}`;
+  if (state.run && state.run.pausedAt && Date.now() - state.run.pausedAt >= state.pauseRemind * MIN) pauseWarned = state.run.pausedAt;
   $('rateBtns').innerHTML = [1, 2, 3, 4, 5].map((r) => `<button type="button" class="rate-btn" data-r="${r}" title="${RATE_WORDS[r]}" aria-label="${r}: ${RATE_WORDS[r]}">${r}</button>`).join('');
 
   sharedBlocks = readShared();
@@ -1612,6 +2121,7 @@
 
   pruneHistory(Date.now());
   renderList();
+  renderInbox();
   renderTemplates();
   if (state.run && !state.run.pausedAt) keepAwake(true);
   tick();

@@ -116,6 +116,7 @@
             <input type="checkbox" id="taskNowDone">
             <span><span class="k">Working on</span> <span id="taskNowText"></span></span>
           </label>
+          <p class="break-idea" id="breakIdea" hidden></p>
           <div class="controls">
             <button class="btn primary" id="btnStart" type="button">Start</button>
             <button class="btn" id="btnSkip" type="button" disabled>Skip</button>
@@ -133,6 +134,7 @@
           <div class="toggles">
             <button class="pill" id="btnFocus" type="button" aria-pressed="false" title="Shortcut: F">Focus mode</button>
             <button class="pill" id="tgl24" type="button" aria-pressed="true">24-hour clock</button>
+            <button class="pill" id="btnPip" type="button" title="A small timer that stays on top of other windows. Shortcut: M" hidden>Mini timer</button>
           </div>
         </section>
 
@@ -162,6 +164,7 @@
               <label class="field"><span class="lbl">Long break</span><input type="number" id="qbLong" min="1" max="240" value="15"><span class="lbl">min</span></label>
               <label class="field"><span class="lbl">Long break every</span><input type="number" id="qbEvery" min="1" max="24" value="4"><span class="lbl">sessions</span></label>
               <label class="check"><input type="checkbox" id="qbPin" checked> Pin every block to its own clock time</label>
+              <div class="samples" id="qbSamples"></div>
               <div class="btns">
                 <button class="btn primary" type="submit" data-mode="replace">Replace plan</button>
                 <button class="btn" type="submit" data-mode="append">Add to end</button>
@@ -178,11 +181,35 @@
           </details>
           <p class="hint" data-full>Repeat blocks, saved plans, sharing and printing are on the <a href="#plans">Plans</a> tab.</p>
         </section>
+
+        <section class="card inbox" aria-labelledby="hInbox" data-full>
+          <div class="plan-head"><h2 id="hInbox">Task inbox</h2><span class="summary" id="inboxCount"></span></div>
+          <form class="ib-form" id="inboxForm">
+            <label class="field grow"><span class="sr">New task</span><input id="inboxIn" maxlength="200" placeholder="Add something to do later" autocomplete="off"></label>
+            <button class="btn small" type="submit">Add</button>
+          </form>
+          <ul class="ib-list" id="inboxList"></ul>
+          <p class="hint">Drag a task by its handle onto a focus session, or press <b>Add to plan</b> to put it in the next free one. Unfinished tasks from blocks you delete or replace come back here.</p>
+        </section>
       </div>
-      <p class="foot">Blocks with a clock time start at that time. Blocks set to “after previous” start as soon as the one before ends. Leave a length empty to run until the next pinned block. Drag the dotted handle to reorder. Shortcuts: Space starts and pauses, F toggles focus mode.</p>
+      <p class="foot">Blocks with a clock time start at that time. Blocks set to “after previous” start as soon as the one before ends. Leave a length empty to run until the next pinned block. Drag the dotted handle to reorder. <button type="button" class="linkish" id="btnKeys">Keyboard shortcuts</button> (press ?) · <a href="https://github.com/Dayolabi/Timer/issues/new" target="_blank" rel="noopener">Send feedback</a></p>
       <section class="about" aria-labelledby="hAbout">
         <h2 id="hAbout">About Focus Timer</h2>
         <p>Focus Timer is a free pomodoro timer that follows the clock. Build a day of focus sessions and short and long breaks, pin any of them to a start time such as lunch at 13:00, and the timer moves through your plan on its own. It shows the date and time to the second, keeps track of your sessions and streaks, and works offline once installed. There’s no sign-up, and your plans stay in your own browser.</p>
+      </section>
+      <section class="faq" aria-labelledby="hFaq">
+        <h2 id="hFaq">Questions and answers</h2>
+        <details><summary>Is Focus Timer free?</summary><p>Yes. There’s no sign-up, no ads and nothing to pay for.</p></details>
+        <details><summary>What is the pomodoro technique?</summary><p>You work in short focused sessions, usually 25 minutes, with a 5-minute break after each one and a longer break after every four. Use <b>Quick build</b> or a ready-made plan to set one up in a click.</p></details>
+        <details><summary>How do clock times work?</summary><p>Any block can be pinned to a start time, such as lunch at 13:00. Pinned blocks start at exactly that time. Other blocks start as soon as the one before them ends.</p></details>
+        <details><summary>Does the timer keep going if I close the page?</summary><p>The plan is tied to the clock, so when you open the page again it picks up where your plan should be. Sounds and alerts can only play while the page is open.</p></details>
+        <details><summary>Why didn’t I hear the alert?</summary><p>Browsers block sound until you’ve clicked or pressed a key on the page. Click anywhere once after opening it. Also check the sound and volume in Settings.</p></details>
+        <details><summary>Does it work offline?</summary><p>Yes. Once the page has loaded, it keeps working without a connection. You can also install it as an app from Settings.</p></details>
+        <details><summary>How do I move my data to another device?</summary><p>Go to <b>Settings → Backup</b>, download a backup file, and restore it on the other device.</p></details>
+      </section>
+      <section class="about privacy" aria-labelledby="hPrivacy">
+        <h2 id="hPrivacy">Privacy</h2>
+        <p>Your plans, tasks, notes and progress are saved only in this browser. Nothing you type is sent anywhere. There are no accounts, ads, analytics or tracking cookies. The page is hosted on GitHub Pages and loads its fonts from Google Fonts, so those services receive the standard request your browser makes to load a web page.</p>
       </section>
     </section>
 
@@ -247,6 +274,9 @@
             <div class="stat"><span class="k">Day streak</span><span class="v" id="statStreak">0 days</span></div>
             <div class="stat" data-full><span class="k">Distractions</span><span class="v" id="statDistract">0</span></div>
           </div>
+          <label class="area" data-full for="dayNote"><span class="lbl">Note for today. What went well, or what would you change?</span>
+            <textarea id="dayNote" rows="2" maxlength="280" placeholder="e.g. Finished the report before lunch."></textarea>
+          </label>
         </section>
 
         <section class="card progress" aria-labelledby="hWeek">
@@ -257,6 +287,17 @@
           </div>
           <div class="rate-strip" id="rateStrip" data-full hidden></div>
           <p class="hint">A session counts once you’ve done at least half of it.</p>
+        </section>
+
+        <section class="card progress" aria-labelledby="hWk" data-full>
+          <div class="plan-head"><h2 id="hWk">This week</h2><span class="summary">Monday to today</span></div>
+          <div id="weekSum"></div>
+          <div class="qb">
+            <button class="btn small" type="button" id="btnCsvDays">Download daily totals (CSV)</button>
+            <button class="btn small" type="button" id="btnCsvSessions">Download sessions (CSV)</button>
+            <button class="btn small" type="button" id="btnReport">Download report (PDF)</button>
+            <p class="hint">CSV files open in Excel, Google Sheets and Numbers, and cover the last 400 days. The PDF report covers this week and last week: in the print window, choose <b>Save as PDF</b>.</p>
+          </div>
         </section>
 
         <section class="card progress" aria-labelledby="hMonth" data-full>
@@ -272,16 +313,28 @@
           <p class="hm-detail" id="hmDetail" aria-live="polite"></p>
           <div class="hm-legend" aria-hidden="true">
             <span>Less</span>
-            <i class="l0" title="No focus"></i><i class="l1" title="Under 30 min"></i><i class="l2" title="30 min to 1 hour"></i><i class="l3" title="1 to 2 hours"></i><i class="l4" title="2 hours or more"></i>
+            <i class="l0" title="No focus"></i><i class="l1" title="Under 30 min"></i><i class="l2" title="30 min to 1 hour"></i><i class="l3" title="1 to 2 hours"></i><i class="l4" title="2 to 5 hours"></i><i class="l5" title="5 hours or more"></i>
             <span>More</span>
           </div>
-          <p class="hint">Darker days had more focus time: under 30 min, 30 min to 1 hour, 1 to 2 hours, and 2 hours or more. Hover over or tap a day for details.</p>
+          <p class="hint">Darker days had more focus time: under 30 min, 30 min to 1 hour, 1 to 2 hours, 2 to 5 hours, and 5 hours or more. A dot means you wrote a note that day. Hover over or tap a day for details.</p>
         </section>
 
         <section class="card progress" aria-labelledby="hTask" data-full>
           <div class="plan-head"><h2 id="hTask">Time by task</h2><span class="summary">Last 7 days</span></div>
           <ul class="tb" id="taskBreak"></ul>
           <p class="hint">Uses the task you typed, or the block’s name if there was no task.</p>
+        </section>
+
+        <section class="card progress" aria-labelledby="hProj" data-full>
+          <div class="plan-head">
+            <h2 id="hProj">Time by project</h2>
+            <div class="segctl small" role="group" aria-label="Period" id="projSeg">
+              <button type="button" data-proj-days="7" aria-pressed="true">7 days</button>
+              <button type="button" data-proj-days="30" aria-pressed="false">30 days</button>
+            </div>
+          </div>
+          <ul class="tb" id="projBreak"></ul>
+          <p class="hint">Give a focus session a project, such as Work or Study, in its row on the Today tab.</p>
         </section>
       </div>
     </section>
@@ -334,6 +387,24 @@
             <label class="check" data-full><input type="checkbox" id="setAuto"> Start automatically at the first block’s clock time</label>
             <p class="hint" data-full>Auto-start works while this page is open, and the first block needs a clock time.</p>
             <p class="hint">Click anywhere on the page once after opening it so sounds can play.</p>
+          </div>
+        </section>
+
+        <section class="card settings" aria-labelledby="hBreaks">
+          <div class="plan-head"><h2 id="hBreaks">Sessions and breaks</h2></div>
+          <div class="set-grid">
+            <label class="check"><input type="checkbox" id="setIdeas"> Show a break idea during breaks, such as stretching or drinking water</label>
+            <label class="field"><span class="lbl">Remind me when paused for</span>
+              <select id="setPauseRemind">
+                <option value="0">Off</option>
+                <option value="5">5 min</option>
+                <option value="10">10 min</option>
+                <option value="15">15 min</option>
+                <option value="30">30 min</option>
+              </select>
+            </label>
+            <label class="check" data-full><input type="checkbox" id="setOvertime"> Keep counting when a focus session ends, until I press Finish</label>
+            <p class="hint" data-full>Handy when you’re in the flow. The extra time counts as focus. A session can’t run past a block pinned to a clock time.</p>
           </div>
         </section>
 
@@ -399,6 +470,7 @@
           <div class="plan-head"><h2 id="hApp">App</h2></div>
           <div class="set-grid">
             <button class="btn" type="button" id="btnInstall" hidden>Install as an app</button>
+            <a class="btn small" href="https://github.com/Dayolabi/Timer/issues/new" target="_blank" rel="noopener">Send feedback or report a bug</a>
             <p class="hint" id="installHint">You can install this page as an app. In Chrome or Edge, use the install icon in the address bar. On iPhone or iPad, tap Share, then Add to Home Screen.</p>
           </div>
         </section>
@@ -406,6 +478,23 @@
     </section>
   </main>
 </div>
+
+<dialog class="keys" id="keysDlg" aria-labelledby="hKeys">
+  <div class="plan-head"><h2 id="hKeys">Keyboard shortcuts</h2><button type="button" class="icon-btn" id="keysClose" aria-label="Close"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></div>
+  <dl>
+    <div><dt><kbd>Space</kbd></dt><dd>Start, pause or resume</dd></div>
+    <div><dt><kbd>S</kbd></dt><dd>Skip to the next block, or finish a session that’s running over</dd></div>
+    <div><dt><kbd>+</kbd></dt><dd>Add 5 minutes to the current block</dd></div>
+    <div><dt><kbd>F</kbd></dt><dd>Focus mode on or off</dd></div>
+    <div id="keyPip" hidden><dt><kbd>M</kbd></dt><dd>Mini timer on or off</dd></div>
+    <div data-full><dt><kbd>D</kbd></dt><dd>I got distracted</dd></div>
+    <div><dt><kbd>1</kbd> to <kbd>4</kbd></dt><dd>Switch tabs</dd></div>
+    <div><dt><kbd>?</kbd></dt><dd>Show this list</dd></div>
+    <div><dt><kbd>Esc</kbd></dt><dd>Close this list or leave focus mode</dd></div>
+  </dl>
+  <p class="hint">Shortcuts don’t work while you’re typing in a box.</p>
+</dialog>
+<datalist id="projList"></datalist>
 
 <div class="print-view" id="printView"></div>
 
