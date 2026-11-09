@@ -44,6 +44,7 @@
   const C = 2 * Math.PI * 100;
   const GC = 2 * Math.PI * 26;
   const PC = 2 * Math.PI * 52;
+  const LONG_PAUSE = 30 * MIN;
 
   /* ---------- helpers ---------- */
   const $ = (id) => document.getElementById(id);
@@ -177,6 +178,14 @@
   function currentTL(now) {
     return state.run ? build(state.run.anchor, state.run) : build(Math.floor(now / 1000) * 1000, null);
   }
+  // Pauses recorded inside a block, clipped to the block's time, oldest first.
+  function pausesOf(x) {
+    const ps = (state.run && state.run.pauses) || [];
+    return ps.filter((p) => p.id === x.b.id)
+      .map((p) => ({ from: Math.max(p.from, x.start), to: Math.min(p.to, x.eff) }))
+      .filter((p) => p.to > p.from).sort((a, b) => a.from - b.from);
+  }
+  const pausedMs = (x) => pausesOf(x).reduce((a, p) => a + p.to - p.from, 0);
 
   /* ---------- formatting ---------- */
   function fmtClock(ms, withSec) {
@@ -253,6 +262,7 @@
           <label class="field"><span class="lbl">Length</span><input type="number" class="dur-in" id="dur-${b.id}" min="1" max="600" value="${b.dur || ''}"><span class="lbl">min</span></label>
           ${proj}
           <span class="times"></span>
+          <span class="pz-note" hidden></span>
           ${task}
           <span class="warn" hidden></span>
         </div>
@@ -335,6 +345,14 @@
     rows.forEach((row, i) => {
       const x = tl[i]; if (!x) return;
       row.querySelector('.times').textContent = `${fmtClock(x.start)} – ${fmtClock(x.eff)}`;
+      // Split the block's time into worked and paused, so a long pause isn't read as focus.
+      let pz = pausedMs(x);
+      const pausedHere = state.run && state.run.pausedAt && st.mode === 'block' && st.i === i;
+      if (pausedHere) pz += Date.now() - state.run.pausedAt;
+      const note = row.querySelector('.pz-note');
+      const showPz = pz >= MIN;
+      note.hidden = !showPz;
+      if (showPz) note.textContent = `${fmtSpan(Math.max(0, (pausedHere ? t : x.eff) - x.start - pausedMs(x)))} ${x.b.kind === 'focus' ? 'focus' : 'break'} · paused ${fmtSpan(pz)}${pausedHere ? ' so far' : ''}`;
       const dur = row.querySelector('.dur-in');
       const nb = state.blocks[i + 1];
       dur.placeholder = nb && nb.at ? 'to next' : String(KINDS[x.b.kind].dur);
@@ -542,7 +560,7 @@
   }
 
   /* ---------- run controls ---------- */
-  function startOrPause() {
+  function startOrPause(opt) {
     ensureAudio();
     if (!state.blocks.length) return;
     const now = Date.now();
@@ -554,8 +572,19 @@
     } else if (state.run.pausedAt) {
       const tl = currentTL(now), st = status(state.run.pausedAt, tl);
       if (st.mode === 'block') {
-        const id = tl[st.i].b.id;
-        state.run.ext[id] = (state.run.ext[id] || 0) + (now - state.run.pausedAt);
+        const r = state.run, b = tl[st.i].b, id = b.id;
+        if (opt === 'restart') {
+          // Start the block again from now, with its full length.
+          r.go[id] = now; r.ext[id] = 0; delete r.cut[id];
+          r.pauses = (r.pauses || []).filter((p) => p.id !== id);
+          if (r.over) delete r.over[id];
+          if (r.overCap) delete r.overCap[id];
+          warnedKey = '';
+          showToast(`Restarted “${nameOf(b)}” from the beginning.`);
+        } else {
+          r.ext[id] = (r.ext[id] || 0) + (now - r.pausedAt);
+          (r.pauses = r.pauses || []).push({ id, from: r.pausedAt, to: now });
+        }
       }
       state.run.pausedAt = null;
       keepAwake(true);
@@ -1011,11 +1040,19 @@
     const stamp = icsDate(Date.now());
     const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Focus Timer//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH'];
     tl.filter((x) => x.eff > x.start).forEach((x) => {
-      lines.push('BEGIN:VEVENT', `UID:${x.b.id}-${x.start}@focus-timer`, `DTSTAMP:${stamp}`,
-        `DTSTART:${icsDate(x.start)}`, `DTEND:${icsDate(x.eff)}`, `SUMMARY:${icsEsc(nameOf(x.b))}`,
-        `CATEGORIES:${KINDS[x.b.kind].name}${x.b.proj ? ',' + icsEsc(x.b.proj) : ''}`);
-      if (x.b.task) lines.push(`DESCRIPTION:${icsEsc(x.b.task)}`);
-      lines.push('END:VEVENT');
+      // A paused block becomes one event per worked stretch.
+      const parts = [];
+      let a = x.start;
+      pausesOf(x).forEach((p) => { if (p.from > a) parts.push([a, p.from]); a = Math.max(a, p.to); });
+      if (x.eff > a) parts.push([a, x.eff]);
+      parts.forEach(([s, e], k) => {
+        const name = nameOf(x.b) + (parts.length > 1 ? ` (part ${k + 1} of ${parts.length})` : '');
+        lines.push('BEGIN:VEVENT', `UID:${x.b.id}-${s}@focus-timer`, `DTSTAMP:${stamp}`,
+          `DTSTART:${icsDate(s)}`, `DTEND:${icsDate(e)}`, `SUMMARY:${icsEsc(name)}`,
+          `CATEGORIES:${KINDS[x.b.kind].name}${x.b.proj ? ',' + icsEsc(x.b.proj) : ''}`);
+        if (x.b.task) lines.push(`DESCRIPTION:${icsEsc(x.b.task)}`);
+        lines.push('END:VEVENT');
+      });
     });
     lines.push('END:VCALENDAR');
     return lines.join('\r\n') + '\r\n';
@@ -1136,7 +1173,7 @@
       <td class="p-t">${fmtClock(x.start)} – ${fmtClock(x.eff)}</td>
       <td><b>${esc(nameOf(x.b))}</b>${x.b.proj ? ` <span class="p-proj">· ${esc(x.b.proj)}</span>` : ''}${x.b.task ? `<div class="p-task">${x.b.taskDone ? '☑' : '☐'} ${esc(x.b.task)}</div>` : ''}</td>
       <td>${KINDS[x.b.kind].name}</td>
-      <td class="p-t">${fmtSpan(x.eff - x.start)}</td>
+      <td class="p-t">${(() => { const pz = pausedMs(x); return pz >= MIN ? `${fmtSpan(x.eff - x.start - pz)}<div class="p-task">+ paused ${fmtSpan(pz)}</div>` : fmtSpan(x.eff - x.start); })()}</td>
     </tr>`).join('');
     $('printView').innerHTML = `<h1>Today’s plan</h1>
       <p class="p-sub">${dateFmt.format(new Date(now))}${tl.length ? ' · ' + esc($('summary').textContent) : ''}</p>
@@ -1157,12 +1194,14 @@
     }
     const lo = Math.min(...live.map((x) => x.start)), hi = Math.max(...live.map((x) => x.eff));
     const span = Math.max(hi - lo, 1);
-    const sig = live.map((x) => [x.b.id, x.b.color, Math.floor(x.start / 1000), Math.floor(x.eff / 1000), x.b.label].join()).join('|') + (st.mode === 'block' ? st.i : '') + state.h24;
+    const sig = live.map((x) => [x.b.id, x.b.color, Math.floor(x.start / 1000), Math.floor(x.eff / 1000), x.b.label].join()).join('|') + (st.mode === 'block' ? st.i : '') + state.h24 + JSON.stringify((state.run && state.run.pauses) || []);
     if (sig !== tlSig) {
       tlSig = sig;
       bar.innerHTML = live.map((x) => {
         const i = tl.indexOf(x);
-        return `<div class="seg" data-i="${i}" style="--c:${x.b.color};left:${((x.start - lo) / span) * 100}%;width:${((x.eff - x.start) / span) * 100}%" title="${esc(nameOf(x.b))} · ${fmtClock(x.start)} – ${fmtClock(x.eff)}"></div>`;
+        const len = x.eff - x.start, ps = pausesOf(x), pz = ps.reduce((a, p) => a + p.to - p.from, 0);
+        const stripes = ps.map((p) => `<div class="pz" style="left:${((p.from - x.start) / len) * 100}%;width:${((p.to - p.from) / len) * 100}%" title="Paused ${fmtClock(p.from)} – ${fmtClock(p.to)} (${fmtSpan(p.to - p.from)})"></div>`).join('');
+        return `<div class="seg" data-i="${i}" style="--c:${x.b.color};left:${((x.start - lo) / span) * 100}%;width:${(len / span) * 100}%" title="${esc(nameOf(x.b))} · ${fmtClock(x.start)} – ${fmtClock(x.eff)}${pz >= MIN ? ` · paused ${fmtSpan(pz)}` : ''}">${stripes}</div>`;
       }).join('') + '<div class="nowline" id="nowline" hidden></div>';
       $('scaleStart').textContent = fmtClock(lo);
       $('scaleEnd').textContent = fmtClock(hi);
@@ -1175,9 +1214,11 @@
     const nl = $('nowline');
     if (nl) { const inRange = t >= lo && t <= hi; nl.hidden = !inRange; if (inRange) nl.style.left = ((t - lo) / span) * 100 + '%'; }
 
-    const focus = tl.filter((x) => x.b.kind === 'focus').reduce((a, x) => a + Math.max(0, x.eff - x.start), 0);
+    const focus = tl.filter((x) => x.b.kind === 'focus').reduce((a, x) => a + Math.max(0, x.eff - x.start - pausedMs(x)), 0);
+    const allPz = live.reduce((a, x) => a + pausedMs(x), 0);
+    $('pzKey').hidden = allPz < MIN;
     const nF = tl.filter((x) => x.b.kind === 'focus').length;
-    $('summary').textContent = `${plural(nF, 'focus session')} · ${fmtSpan(focus)} of focus · ${fmtClock(lo)} → ${fmtClock(hi)}`;
+    $('summary').textContent = `${plural(nF, 'focus session')} · ${fmtSpan(focus)} of focus${allPz >= MIN ? ` · ${fmtSpan(allPz)} paused` : ''} · ${fmtClock(lo)} → ${fmtClock(hi)}`;
   }
 
   function renderDial(st, tl, t, now) {
@@ -1218,6 +1259,9 @@
       cd = '00:00'; sub = `Finished at ${fmtClock(Math.max(...tl.map((x) => x.eff)))}`; frac = 0;
     }
     const paused = !!(run && run.pausedAt);
+    const pauseLen = paused && st.mode === 'block' ? now - run.pausedAt : 0;
+    const longPause = pauseLen >= LONG_PAUSE;
+    if (pauseLen >= MIN) sub = `Paused for ${fmtSpan(pauseLen)}`;
     setCur(color);
     const chipEl = $('phaseChip');
     chipEl.textContent = paused ? `${chip} · paused` : chip;
@@ -1268,7 +1312,11 @@
     } else up.hidden = true;
 
     const bs = $('btnStart');
-    bs.textContent = !run ? 'Start' : paused ? 'Resume' : 'Pause';
+    bs.textContent = !run ? 'Start' : paused ? (longPause ? 'Continue' : 'Resume') : 'Pause';
+    bs.title = longPause ? 'Carry on where you stopped' : '';
+    const rs = $('btnRestart');
+    rs.hidden = !longPause;
+    if (longPause) rs.textContent = tl[st.i].b.kind === 'focus' ? 'Restart session' : 'Restart break';
     bs.disabled = !state.blocks.length;
     $('btnSkip').disabled = !run || st.mode === 'done';
     $('btnSkip').textContent = run && (st.mode === 'wait' || st.mode === 'gap') ? 'Start now' : overMs ? 'Finish' : 'Skip';
@@ -1278,7 +1326,7 @@
     document.title = run && st.mode !== 'done' ? `${cd} · ${label}` : PAGE_TITLE;
     updateIcon(!!run && (st.mode === 'block' || st.mode === 'wait' || st.mode === 'gap'), color, dashed ? 0 : frac, rem, paused, overMs);
     renderPip({ chip: chipEl.textContent, label, cd, frac, color, dashed, over: overMs > 0,
-      start: bs.textContent, startOff: bs.disabled, skip: $('btnSkip').textContent, skipOff: $('btnSkip').disabled });
+      start: bs.textContent, startOff: bs.disabled, skip: $('btnSkip').textContent, skipOff: $('btnSkip').disabled, restart: longPause ? rs.textContent : '' });
     cheerMood(st.mode === 'block' ? tl[st.i].b.kind : st.mode);
   }
 
@@ -1372,9 +1420,10 @@
         <div class="pip-cd" id="pCd" role="timer">00:00</div>
       </div>
       <div class="pip-label" id="pLabel"></div>
-      <div class="pip-btns"><button class="btn primary small" type="button" id="pStart">Start</button><button class="btn small" type="button" id="pSkip">Skip</button></div>
+      <div class="pip-btns"><button class="btn primary small" type="button" id="pStart">Start</button><button class="btn small" type="button" id="pRestart" hidden>Restart</button><button class="btn small" type="button" id="pSkip">Skip</button></div>
     </div>`;
-    d.getElementById('pStart').addEventListener('click', startOrPause);
+    d.getElementById('pStart').addEventListener('click', () => startOrPause());
+    d.getElementById('pRestart').addEventListener('click', () => startOrPause('restart'));
     d.getElementById('pSkip').addEventListener('click', skip);
     d.addEventListener('keydown', (e) => {
       if (e.code === 'Space' && !e.repeat && !e.target.closest('button')) { e.preventDefault(); startOrPause(); }
@@ -1393,7 +1442,7 @@
   }
   function renderPip(v) {
     if (!pip) return;
-    const sig = [v.chip, v.label, v.cd, Math.round(v.frac * 400), v.color, v.dashed, v.over, v.start, v.startOff, v.skip, v.skipOff].join('|');
+    const sig = [v.chip, v.label, v.cd, Math.round(v.frac * 400), v.color, v.dashed, v.over, v.start, v.startOff, v.skip, v.skipOff, v.restart].join('|');
     if (sig === pipSig) return;
     pipSig = sig;
     const d = pip.document, g = (id) => d.getElementById(id);
@@ -1407,6 +1456,7 @@
     pr.classList.toggle('dashed', v.dashed);
     g('pStart').textContent = v.start; g('pStart').disabled = v.startOff;
     g('pSkip').textContent = v.skip; g('pSkip').disabled = v.skipOff;
+    g('pRestart').hidden = !v.restart;
     d.title = v.cd !== '00:00' ? `${v.cd} · ${v.label}` : 'Focus Timer';
   }
 
@@ -1455,7 +1505,7 @@
       const len = plural(state.pauseRemind, 'minute');
       playSound('warn', 'Still paused. Ready to carry on?');
       notify('Still paused', `The timer has been paused for ${len}.`);
-      showToast(`Paused for ${len}. Ready to carry on?`, { action: 'Resume', ms: 20000, onAction: startOrPause });
+      showToast(`Paused for ${len}. Ready to carry on?`, { action: 'Resume', ms: 20000, onAction: () => startOrPause() });
     }
     const tl = currentTL(now);
     const t = run && run.pausedAt ? run.pausedAt : now;
@@ -1939,7 +1989,8 @@
   });
 
   // Timer controls
-  $('btnStart').addEventListener('click', startOrPause);
+  $('btnStart').addEventListener('click', () => startOrPause());
+  $('btnRestart').addEventListener('click', () => startOrPause('restart'));
   $('btnSkip').addEventListener('click', skip);
   $('btnStop').addEventListener('click', reset);
   $('tgl24').addEventListener('click', () => { state.h24 = !state.h24; tlSig = ''; renderTemplates(); changed(false); });

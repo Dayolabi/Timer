@@ -429,6 +429,13 @@ details.quick summary span { font-weight: 400; color: var(--muted); font-size: .
 @media (max-width: 880px) { .grid { grid-template-areas: "timer" "plan" "inbox"; grid-template-rows: auto; } }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
+/* Paused stretches inside a block */
+.seg { overflow: hidden; }
+.pz { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--muted) 70%, var(--surface)) 0 3px, var(--surface) 3px 7px); }
+.pz-key { display: inline-flex; align-items: center; gap: 5px; }
+.pz-key i { width: 14px; height: 10px; border-radius: 2px; background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--muted) 70%, var(--surface)) 0 3px, var(--surface) 3px 7px); border: 1px solid var(--line); }
+.pz-note { flex-basis: 100%; text-align: right; color: var(--muted); font-size: .82rem; font-variant-numeric: tabular-nums; }
+
 /* Break idea */
 .break-idea { margin: 0; width: 100%; padding: 10px 14px; border-radius: 14px; text-align: left; background: color-mix(in srgb, var(--cur) 12%, var(--surface)); }
 .break-idea .k { display: block; font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }

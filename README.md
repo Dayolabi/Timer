@@ -53,6 +53,8 @@ New visitors start in Simple. Anything set up in Full keeps working in Simple. F
 - **+5 min** adds five minutes to the current block. It's also offered for a few seconds after a session ends.
 - **Keep going past the end** (optional). A focus session keeps counting after its planned time until you press **Finish**. It stops at a block pinned to a clock time.
 - **Break ideas** during breaks, such as stretching or drinking water.
+- **Pauses are shown, not hidden.** A paused stretch appears as grey stripes inside the block on the timeline, and the block's row says how long you worked and how long it was paused (for example "1h focus · paused 40 min"). The plan's focus total leaves pauses out, and a paused block is split into separate events in the calendar file.
+- **Continue or restart after a long pause.** After 30 minutes paused, you can choose **Continue** (carry on where you stopped) or **Restart session** (start the block again with its full length).
 - **Pause reminder** with a sound and a Resume button if the timer has been paused for 5, 10, 15 or 30 minutes.
 - **Mini timer** in a small window that stays on top of other apps (Chrome and Edge).
 - **Background sound** during focus sessions: rain, ocean waves, brown noise or white noise, generated in the browser.
@@ -109,7 +111,7 @@ New visitors start with an empty plan. Everything is saved in your own browser, 
 | A block's length is left empty | It runs until the next pinned block starts. |
 | A block would run past the next pinned start | It's cut short, and the plan shows a warning. |
 | A block ends before the next pinned start | The gap shows as **Free time**, with a countdown. Press **Start now** to begin the next block early. |
-| You pause | Blocks set to "after previous" move back by the length of the pause. Pinned blocks stay where they are. |
+| You pause | Blocks set to "after previous" move back by the length of the pause. Pinned blocks stay where they are. The pause shows as grey stripes in the block. |
 
 Clock times are matched to the nearest occurrence within 12 hours, so a plan that runs past midnight works as expected.
 

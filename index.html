@@ -121,6 +121,7 @@
             <button class="btn primary" id="btnStart" type="button">Start</button>
             <button class="btn" id="btnSkip" type="button" disabled>Skip</button>
             <button class="btn" id="btnStop" type="button" disabled>Reset</button>
+            <button class="btn" id="btnRestart" type="button" title="Start this block again from the beginning" hidden>Restart session</button>
             <button class="btn" id="btnPlus" type="button" title="Add 5 minutes to this block" hidden>+5 min</button>
           </div>
           <button class="pill distract" id="btnDistract" type="button" title="Count an interruption. It shows in your progress." data-full hidden>I got distracted</button>
@@ -145,7 +146,7 @@
           </div>
           <div class="timeline" id="timeline">
             <div class="track-bar" id="trackBar"></div>
-            <div class="track-scale"><span id="scaleStart"></span><span id="scaleEnd"></span></div>
+            <div class="track-scale"><span id="scaleStart"></span><span class="pz-key" id="pzKey" hidden><i aria-hidden="true"></i>Paused</span><span id="scaleEnd"></span></div>
           </div>
           <ol class="blocks" id="blocks"></ol>
           <div class="add-row">
